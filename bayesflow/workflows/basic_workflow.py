@@ -1,7 +1,9 @@
 import os
 
-import keras
 import numpy as np
+import matplotlib.pyplot as plt
+
+import keras
 
 from bayesflow.datasets import OnlineDataset, OfflineDataset, DiskDataset
 from bayesflow.networks import InferenceNetwork, SummaryNetwork
@@ -26,6 +28,9 @@ class BasicWorkflow(Workflow):
         checkpoint_filepath: str = None,
         checkpoint_name: str = "model",
         save_weights_only: bool = False,
+        inference_variables: str = "theta",
+        inference_conditions: str = "x",
+        summary_variables: str = None,
         **kwargs,
     ):
         self.inference_network = find_inference_network(inference_network, **kwargs.get("inference_kwargs", {}))
@@ -41,9 +46,12 @@ class BasicWorkflow(Workflow):
             self.adapter = (
                 Adapter()
                 .convert_dtype(from_dtype="float64", to_dtype="float32")
-                .rename("theta", "inference_variables")
-                .rename("x", "inference_conditions" if self.summary_network is None else "summary_variables")
+                .rename(inference_variables, "inference_variables")
             )
+            if inference_conditions is not None:
+                self.adapter = self.adapter.rename(inference_conditions, "inference_conditions")
+            if summary_variables is not None and summary_network is not None:
+                self.adapter = self.adapter.rename(summary_variables, "summary_variables")
         else:
             self.adapter = adapter
 
@@ -85,10 +93,13 @@ class BasicWorkflow(Workflow):
     def log_prob(self, data: dict[str, np.ndarray], **kwargs):
         return self.approximator.log_prob(data=data)
 
-    def recovery(self, test_data: dict[str, np.ndarray], num_samples=1000, **kwargs):
+    def convergence(self, history: dict) -> plt.Figure:
         raise NotImplementedError
 
-    def calibration(self, test_data: dict[str, np.ndarray], num_samples=1000, **kwargs):
+    def recovery(self, test_data: dict[str, np.ndarray], num_samples=1000, **kwargs) -> plt.Figure:
+        raise NotImplementedError
+
+    def calibration(self, test_data: dict[str, np.ndarray], num_samples=1000, **kwargs) -> plt.Figure:
         raise NotImplementedError
 
     def fit_disk(
