@@ -8,7 +8,7 @@ from ...utils.dict_utils import dicts_to_arrays
 def root_mean_squared_error(
     post_samples: dict[str, np.ndarray] | np.ndarray,
     prior_samples: dict[str, np.ndarray] | np.ndarray,
-    normalize: bool = False,
+    normalize: bool = True,
     aggregation: callable = np.median,
     filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
@@ -22,7 +22,7 @@ def root_mean_squared_error(
         for each data set from `num_datasets`.
     prior_samples  : np.ndarray of shape (num_datasets, num_variables)
         Prior samples, comprising `num_datasets` ground truths.
-    normalize      : bool, optional (default = False)
+    normalize      : bool, optional (default = True)
         Whether to normalize the RMSE using the range of the prior samples.
     aggregation    : callable, optional (default = np.median)
         Function to aggregate the RMSE across draws. Typically `np.mean` or `np.median`.
@@ -42,7 +42,7 @@ def root_mean_squared_error(
     -------
     result : dict
         Dictionary containing:
-        - "metric" : np.ndarray
+        - "values" : np.ndarray
             The aggregated (N)RMSE for each variable.
         - "metric_name" : str
             The name of the metric ("RMSE" or "NRMSE").
@@ -61,4 +61,4 @@ def root_mean_squared_error(
         metric_name = "RMSE"
 
     rmse = aggregation(rmse, axis=0)
-    return {"metric": rmse, "name": metric_name, "variable_names": samples["variable_names"]}
+    return {"values": rmse, "metric_name": metric_name, "variable_names": samples["variable_names"]}

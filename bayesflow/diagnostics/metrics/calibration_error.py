@@ -44,7 +44,7 @@ def calibration_error(
     -------
     result : dict
         Dictionary containing:
-        - "metric" : float or np.ndarray
+        - "values" : float or np.ndarray
             The aggregated calibration error per variable
         - "metric_name" : str
             The name of the metric ("Calibration Error").
@@ -82,4 +82,4 @@ def calibration_error(
     # Aggregate errors across alpha
     error = aggregation(absolute_errors, axis=0)
 
-    return {"metric": error, "metric_name": "Calibration Error", "variable_names": variable_names}
+    return {"values": error, "metric_name": "Calibration Error", "variable_names": variable_names}

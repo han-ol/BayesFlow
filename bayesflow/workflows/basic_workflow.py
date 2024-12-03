@@ -3,6 +3,7 @@ from typing import Sequence
 import os
 
 import numpy as np
+import pandas as pd
 
 import keras
 
@@ -13,6 +14,7 @@ from bayesflow.adapters import Adapter
 from bayesflow.approximators import ContinuousApproximator
 from bayesflow.types import Shape
 from bayesflow.utils import find_inference_network, find_summary_network
+from bayesflow.diagnostics import metrics as bf_metrics
 
 from .workflow import Workflow
 
@@ -32,7 +34,7 @@ class BasicWorkflow(Workflow):
         inference_variables: Sequence[str] | str = "theta",
         inference_conditions: Sequence[str] | str = "x",
         summary_variables: Sequence[str] | str = None,
-        standardize: Sequence[str] | str = None,
+        standardize: Sequence[str] | str = "inference_variables",
         **kwargs,
     ):
         self.inference_network = find_inference_network(inference_network, **kwargs.get("inference_kwargs", {}))
@@ -45,7 +47,7 @@ class BasicWorkflow(Workflow):
         self.simulator = simulator
 
         if adapter is None:
-            self.adapter = BasicWorkflow.create_adapter(
+            self.adapter = BasicWorkflow.default_adapter(
                 inference_variables, inference_conditions, summary_variables, standardize
             )
         else:
@@ -68,7 +70,7 @@ class BasicWorkflow(Workflow):
         self.save_weights_only = save_weights_only
 
     @staticmethod
-    def create_adapter(
+    def default_adapter(
         inference_variables: Sequence[str] | str,
         inference_conditions: Sequence[str] | str,
         summary_variables: Sequence[str] | str,
@@ -86,7 +88,7 @@ class BasicWorkflow(Workflow):
             adapter = adapter.concatenate(summary_variables, into="summary_variables")
 
         if standardize is not None:
-            adapter.standardize(include=standardize)
+            adapter = adapter.standardize(include=standardize)
 
         return adapter
 
@@ -117,16 +119,61 @@ class BasicWorkflow(Workflow):
     def plot_diagnostics(self, test_data: dict[str, np.ndarray] | int = None):
         pass
 
-    def compute_diagnostics(self, test_data: dict[str, np.ndarray] | int = None, num_samples: int = 1000, **kwargs):
-        if test_data is not None:
-            if isinstance(test_data, int) and self.simulator is not None:
-                test_data = self.simulator.sample(test_data, **kwargs.pop("test_data_kwargs", {}))
-            elif isinstance(test_data, int):
-                raise ValueError(f"No simulator found for generating {test_data} data sets.")
+    def compute_diagnostics(
+        self,
+        test_data: dict[str, np.ndarray] | int,
+        num_samples: int = 1000,
+        filter_keys: Sequence[str] = None,
+        variable_names: Sequence[str] = None,
+        as_pandas: bool = True,
+        **kwargs,
+    ) -> Sequence[dict] | pd.DataFrame:
+        if isinstance(test_data, int) and self.simulator is not None:
+            test_data = self.simulator.sample(test_data, **kwargs.pop("test_data_kwargs", {}))
+        elif isinstance(test_data, int):
+            raise ValueError(f"No simulator found for generating {test_data} data sets.")
 
-        self.approximator.sample(num_samples=num_samples, conditions=test_data, **kwargs)
+        inference_variables = test_data.pop(self.inference_variables)
 
-        # WIP Deal with dict vs. array return
+        post_samples = self.approximator.sample(num_samples=num_samples, conditions=test_data, **kwargs)
+
+        rmse = bf_metrics.root_mean_squared_error(
+            post_samples=post_samples,
+            prior_samples={self.inference_variables: inference_variables},
+            filter_keys=filter_keys,
+            variable_names=variable_names,
+            **kwargs.get("root_mean_squared_error_kwargs", {}),
+        )
+
+        contraction = bf_metrics.posterior_contraction(
+            post_samples=post_samples,
+            prior_samples={self.inference_variables: inference_variables},
+            filter_keys=filter_keys,
+            variable_names=variable_names,
+            **kwargs.get("posterior_contraction_kwargs", {}),
+        )
+
+        calibration_errors = bf_metrics.calibration_error(
+            post_samples=post_samples,
+            prior_samples={self.inference_variables: inference_variables},
+            filter_keys=filter_keys,
+            variable_names=variable_names,
+            **kwargs.get("calibration_error_kwargs", {}),
+        )
+
+        if as_pandas:
+            metrics = pd.DataFrame(
+                {
+                    rmse["metric_name"]: rmse["values"],
+                    contraction["metric_name"]: contraction["values"],
+                    calibration_errors["metric_name"]: calibration_errors["values"],
+                },
+                index=rmse["variable_names"],
+            ).T
+        else:
+            metrics = (rmse, contraction, calibration_errors)
+
+        return metrics
 
     def fit_disk(
         self,
@@ -225,12 +272,11 @@ class BasicWorkflow(Workflow):
         try:
             history = self.approximator.fit(dataset=dataset, epochs=epochs, validation_data=validation_data, **kwargs)
             return history
-
         except Exception as err:
+            raise err
+        finally:
             if not keep_optimizer:
                 self.optimizer = None
-
-            raise err
 
     def build_optimizer(self, epochs: int, num_batches: int, strategy: str):
         if self.optimizer is not None:

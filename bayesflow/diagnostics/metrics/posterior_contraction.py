@@ -32,7 +32,7 @@ def posterior_contraction(
     -------
     result : dict
         Dictionary containing:
-        - "metric" : float or np.ndarray
+        - "values" : float or np.ndarray
             The aggregated posterior contraction per variable
         - "metric_name" : str
             The name of the metric ("Posterior Contraction").
@@ -52,4 +52,4 @@ def posterior_contraction(
     prior_vars = samples["prior_variables"].var(axis=0, keepdims=True, ddof=1)
     contraction = 1 - (post_vars / prior_vars)
     contraction = aggregation(contraction, axis=0)
-    return {"metric": contraction, "metric_name": "Posterior Contraction", "variable_names": samples["variable_names"]}
+    return {"values": contraction, "metric_name": "Posterior Contraction", "variable_names": samples["variable_names"]}
