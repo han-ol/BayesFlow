@@ -1,15 +1,19 @@
-from typing import Any
+from typing import Sequence, Any
 
 import numpy as np
 
+from ...utils.dict_utils import dicts_to_arrays
+
 
 def calibration_error(
-    post_samples: np.ndarray,
-    prior_samples: np.ndarray,
+    post_samples: dict[str, np.ndarray] | np.ndarray,
+    prior_samples: dict[str, np.ndarray] | np.ndarray,
     resolution: int = 20,
     aggregation: callable = np.median,
     min_quantile: float = 0.005,
     max_quantile: float = 0.995,
+    filter_keys: Sequence[str] = None,
+    variable_names: Sequence[str] = None,
 ) -> dict[str, Any]:
     """Computes an aggregate score for the marginal calibration error over an ensemble of approximate
     posteriors. The calibration error is given as the aggregate (e.g., median) of the absolute deviation
@@ -31,6 +35,10 @@ def calibration_error(
         The minimum posterior quantile to consider.
     max_quantile  : float in (0, 1), optional, default: 0.995
         The maximum posterior quantile to consider.
+    filter_keys    : Sequence[str], optional (default = None)
+        Optional variable names to filter out of the metric computation.
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to select from the available variables.
 
     Returns
     -------
@@ -38,9 +46,14 @@ def calibration_error(
         Dictionary containing:
         - "metric" : float or np.ndarray
             The aggregated calibration error per variable
-        - "name" : str
+        - "metric_name" : str
             The name of the metric ("Calibration Error").
+        - "variable_names" : str
+            The (inferred) variable names.
     """
+
+    samples = dicts_to_arrays(post_samples, prior_samples, filter_keys, variable_names)
+
     # Define alpha values and the corresponding quantile bounds
     alphas = np.linspace(start=min_quantile, stop=max_quantile, num=resolution)
     regions = 1 - alphas
@@ -48,25 +61,25 @@ def calibration_error(
     uppers = 1 - lowers
 
     # Compute quantiles for each alpha, for each dataset and parameter
-    quantiles = np.quantile(post_samples, [lowers, uppers], axis=1)
+    quantiles = np.quantile(samples["post_variables"], [lowers, uppers], axis=1)
 
     # Shape: (2, resolution, num_datasets, num_params)
     lower_bounds, upper_bounds = quantiles[0], quantiles[1]
 
     # Compute masks for inliers
-    higher_mask = lower_bounds <= prior_samples[:, None, :]
-    lower_mask = upper_bounds >= prior_samples[:, None, :]
+    lower_mask = lower_bounds <= samples["prior_variables"][None, ...]
+    upper_mask = upper_bounds >= samples["prior_variables"][None, ...]
 
     # Logical AND to identify inliers for each alpha
-    inlier_id = np.logical_and(higher_mask, lower_mask)
+    inlier_id = np.logical_and(lower_mask, upper_mask)
 
     # Compute the relative number of inliers for each alpha
-    alpha_pred = np.mean(inlier_id, axis=2)  # Shape: (resolution, num_params)
+    alpha_pred = np.mean(inlier_id, axis=1)
 
     # Calculate absolute error between predicted inliers and alpha
     absolute_errors = np.abs(alpha_pred - alphas[:, None])
 
-    # Aggregate errors across alpha and parameters
+    # Aggregate errors across alpha
     error = aggregation(absolute_errors, axis=0)
 
-    return {"metric": error, "name": "Calibration Error"}
+    return {"metric": error, "metric_name": "Calibration Error", "variable_names": variable_names}

@@ -1,24 +1,32 @@
-from typing import Any
+from typing import Sequence, Any
 
 import numpy as np
 
+from ...utils.dict_utils import dicts_to_arrays
+
 
 def posterior_contraction(
-    post_samples: np.ndarray,
-    prior_samples: np.ndarray,
+    post_samples: dict[str, np.ndarray] | np.ndarray,
+    prior_samples: dict[str, np.ndarray] | np.ndarray,
     aggregation: callable = np.median,
+    filter_keys: Sequence[str] = None,
+    variable_names: Sequence[str] = None,
 ) -> dict[str, Any]:
     """Computes the posterior contraction (PC) from prior to posterior for the given samples.
 
     Parameters
     ----------
-    post_samples  : np.ndarray of shape (num_datasets, num_draws_post, num_variables)
+    post_samples   : np.ndarray of shape (num_datasets, num_draws_post, num_variables)
         Posterior samples, comprising `num_draws_post` random draws from the posterior distribution
         for each data set from `num_datasets`.
-    prior_samples : np.ndarray of shape (num_datasets, num_variables)
+    prior_samples  : np.ndarray of shape (num_datasets, num_variables)
         Prior samples, comprising `num_datasets` ground truths.
-    aggregation   : callable, optional (default = np.median)
+    aggregation    : callable, optional (default = np.median)
         Function to aggregate the PC across draws. Typically `np.mean` or `np.median`.
+    filter_keys    : Sequence[str], optional (default = None)
+        Optional variable names to filter out of the metric computation.
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to select from the available variables.
 
     Returns
     -------
@@ -26,8 +34,10 @@ def posterior_contraction(
         Dictionary containing:
         - "metric" : float or np.ndarray
             The aggregated posterior contraction per variable
-        - "name" : str
+        - "metric_name" : str
             The name of the metric ("Posterior Contraction").
+        - "variable_names" : str
+            The (inferred) variable names.
 
     Notes
     -----
@@ -36,8 +46,10 @@ def posterior_contraction(
     indicate low contraction.
     """
 
-    post_vars = post_samples.var(axis=1, ddof=1)
-    prior_vars = prior_samples.var(axis=0, keepdims=True, ddof=1)
+    samples = dicts_to_arrays(post_samples, prior_samples, filter_keys, variable_names)
+
+    post_vars = samples["post_variables"].var(axis=1, ddof=1)
+    prior_vars = samples["prior_variables"].var(axis=0, keepdims=True, ddof=1)
     contraction = 1 - (post_vars / prior_vars)
     contraction = aggregation(contraction, axis=0)
-    return {"metric": contraction, "name": "Posterior Contraction"}
+    return {"metric": contraction, "metric_name": "Posterior Contraction", "variable_names": samples["variable_names"]}

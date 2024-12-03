@@ -51,6 +51,8 @@ class BasicWorkflow(Workflow):
         else:
             self.adapter = adapter
 
+        self.inference_variables = inference_variables
+
         self.approximator = ContinuousApproximator(
             inference_network=self.inference_network, summary_network=self.summary_network, adapter=self.adapter
         )

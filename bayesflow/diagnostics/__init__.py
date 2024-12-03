@@ -7,3 +7,5 @@ from .plot_z_score_contraction import plot_z_score_contraction
 from .plot_prior_2d import plot_prior_2d
 from .plot_posterior_2d import plot_posterior_2d
 from .plot_calibration_curves import plot_calibration_curves
+
+from .metrics import root_mean_squared_error, calibration_error, posterior_contraction
