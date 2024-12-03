@@ -26,5 +26,8 @@ class Workflow:
     def log_prob(self, **kwargs):
         raise NotImplementedError("Method must be implemented by caller.")
 
-    def diagnose(self, **kwargs):
+    def plot_diagnostics(self, **kwargs):
+        raise NotImplementedError("Method must be implemented by caller.")
+
+    def compute_diagnostics(self, **kwargs):
         raise NotImplementedError("Method must be implemented by caller.")

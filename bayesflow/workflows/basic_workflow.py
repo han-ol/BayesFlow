@@ -1,7 +1,8 @@
+from typing import Sequence
+
 import os
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 import keras
 
@@ -28,9 +29,10 @@ class BasicWorkflow(Workflow):
         checkpoint_filepath: str = None,
         checkpoint_name: str = "model",
         save_weights_only: bool = False,
-        inference_variables: str = "theta",
-        inference_conditions: str = "x",
-        summary_variables: str = None,
+        inference_variables: Sequence[str] | str = "theta",
+        inference_conditions: Sequence[str] | str = "x",
+        summary_variables: Sequence[str] | str = None,
+        standardize: Sequence[str] | str = None,
         **kwargs,
     ):
         self.inference_network = find_inference_network(inference_network, **kwargs.get("inference_kwargs", {}))
@@ -43,15 +45,9 @@ class BasicWorkflow(Workflow):
         self.simulator = simulator
 
         if adapter is None:
-            self.adapter = (
-                Adapter()
-                .convert_dtype(from_dtype="float64", to_dtype="float32")
-                .rename(inference_variables, "inference_variables")
+            self.adapter = BasicWorkflow.create_adapter(
+                inference_variables, inference_conditions, summary_variables, standardize
             )
-            if inference_conditions is not None:
-                self.adapter = self.adapter.rename(inference_conditions, "inference_conditions")
-            if summary_variables is not None and summary_network is not None:
-                self.adapter = self.adapter.rename(summary_variables, "summary_variables")
         else:
             self.adapter = adapter
 
@@ -68,6 +64,29 @@ class BasicWorkflow(Workflow):
         self.checkpoint_filepath = checkpoint_filepath
         self.checkpoint_name = checkpoint_name
         self.save_weights_only = save_weights_only
+
+    @staticmethod
+    def create_adapter(
+        inference_variables: Sequence[str] | str,
+        inference_conditions: Sequence[str] | str,
+        summary_variables: Sequence[str] | str,
+        standardize: Sequence[str] | str,
+    ):
+        adapter = (
+            Adapter()
+            .convert_dtype(from_dtype="float64", to_dtype="float32")
+            .concatenate(inference_variables, into="inference_variables")
+        )
+
+        if inference_conditions is not None:
+            adapter = adapter.concatenate(inference_conditions, into="inference_conditions")
+        if summary_variables is not None:
+            adapter = adapter.concatenate(summary_variables, into="summary_variables")
+
+        if standardize is not None:
+            adapter.standardize(include=standardize)
+
+        return adapter
 
     def simulate(self, batch_shape: Shape, **kwargs) -> dict[str, np.ndarray]:
         if self.simulator is not None:
@@ -93,14 +112,19 @@ class BasicWorkflow(Workflow):
     def log_prob(self, data: dict[str, np.ndarray], **kwargs):
         return self.approximator.log_prob(data=data)
 
-    def convergence(self, history: dict) -> plt.Figure:
-        raise NotImplementedError
+    def plot_diagnostics(self, test_data: dict[str, np.ndarray] | int = None):
+        pass
 
-    def recovery(self, test_data: dict[str, np.ndarray], num_samples=1000, **kwargs) -> plt.Figure:
-        raise NotImplementedError
+    def compute_diagnostics(self, test_data: dict[str, np.ndarray] | int = None, num_samples: int = 1000, **kwargs):
+        if test_data is not None:
+            if isinstance(test_data, int) and self.simulator is not None:
+                test_data = self.simulator.sample(test_data, **kwargs.pop("test_data_kwargs", {}))
+            elif isinstance(test_data, int):
+                raise ValueError(f"No simulator found for generating {test_data} data sets.")
 
-    def calibration(self, test_data: dict[str, np.ndarray], num_samples=1000, **kwargs) -> plt.Figure:
-        raise NotImplementedError
+        self.approximator.sample(num_samples=num_samples, conditions=test_data, **kwargs)
+
+        # WIP Deal with dict vs. array return
 
     def fit_disk(
         self,
@@ -162,7 +186,7 @@ class BasicWorkflow(Workflow):
     ) -> dict[str, np.ndarray]:
         if validation_data is not None:
             if isinstance(validation_data, int) and self.simulator is not None:
-                validation_data = self.simulator.sample(validation_data, **kwargs.pop("validation_sims_kwargs", {}))
+                validation_data = self.simulator.sample(validation_data, **kwargs.pop("validation_data_kwargs", {}))
             elif isinstance(validation_data, int):
                 raise ValueError(f"No simulator found for generating {validation_data} data sets.")
 
