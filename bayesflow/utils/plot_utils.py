@@ -1,4 +1,4 @@
-from typing import Sequence, Any
+from typing import Sequence, Any, Mapping
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,32 +8,35 @@ from .validators import check_posterior_prior_shapes
 from .dict_utils import dicts_to_arrays
 
 
-def preprocess(
-    post_variables: dict[str, np.ndarray] | np.ndarray,
-    prior_variables: dict[str, np.ndarray] | np.ndarray,
-    filter_keys: Sequence[str] = None,
+def prepare_plot_data(
+    estimates: Mapping[str, np.ndarray] | np.ndarray,
+    ground_truths: Mapping[str, np.ndarray] | np.ndarray,
     variable_names: Sequence[str] = None,
-    context: str = None,
     num_col: int = None,
     num_row: int = None,
     figsize: tuple = None,
     stacked: bool = False,
-) -> dict[str, Any]:
+    default_name: str = "var",
+) -> Mapping[str, Any]:
     """
-    Procedural wrapper that encompasses all preprocessing steps,
-    including shape-checking, parameter name generation, layout configuration,
-    figure initialization, and axial collapsing for loop and plot.
+    Procedural wrapper that encompasses all preprocessing steps, including shape-checking, parameter name
+    generation, layout configuration, figure initialization, and collapsing of axes.
 
     Parameters
     ----------
-    post_variables    : np.ndarray of shape (num_data_sets, num_post_draws, num_params)
-        The posterior draws obtained from num_data_sets
-    prior_variables   : np.ndarray of shape (num_data_sets, num_params)
-        The prior draws obtained for generating num_data_sets
-    names             : str
-        Parameter name used to initialize the figure
-    context           : str
-        Context where the parameters are situated (e.g., Posterior Inference)
+    estimates         : dict[str, ndarray] or ndarray
+        The model-generated estimates, which can take the following forms:
+        - ndarray of shape (num_datasets, num_variables)
+            Point estimates for each dataset, where `num_datasets` is the number of datasets
+            and `num_variables` is the number of variables per dataset.
+        - ndarray of shape (num_datasets, num_draws, num_variables)
+            Posterior samples for each dataset, where `num_datasets` is the number of datasets,
+            `num_draws` is the number of posterior draws, and `num_variables` is the number of variables.
+    ground_truths     : dict[str, ndarray] or ndarray, optional (default = None)
+        Ground truth values corresponding to the estimates. Must match the structure and dimensionality
+        of `estimates` in terms of first and last axis.
+    variable_names    : Sequence[str], optional (default = None)
+        Optional variable names to act as a filter if dicts provided or actual variable names in case of array args
     num_col           : int
         Number of columns for the visualization layout
     num_row           : int
@@ -42,24 +45,22 @@ def preprocess(
         Size of the figure adjusting to the display resolution
     stacked           : bool, optional, default: False
         Whether the plots are stacked horizontally
+    default_name      : str, optional (default = "var")
+        Context where the estimates are situated (e.g., Posterior Inference)
     """
 
     plot_data = dicts_to_arrays(
-        post_variables=post_variables,
-        prior_variables=prior_variables,
-        filter_keys=filter_keys,
-        variable_names=variable_names,
-        context=context,
+        estimates=estimates, ground_truths=ground_truths, variable_names=variable_names, default_name=default_name
     )
-    check_posterior_prior_shapes(plot_data["post_variables"], plot_data["prior_variables"])
+    check_posterior_prior_shapes(plot_data["estimates"], plot_data["ground_truths"])
 
     # Configure layout
     num_row, num_col = set_layout(plot_data["num_variables"], num_row, num_col, stacked)
 
     # Initialize figure
-    f, axes = make_figure(num_row, num_col, figsize=figsize)
+    fig, axes = make_figure(num_row, num_col, figsize=figsize)
 
-    plot_data["fig"] = f
+    plot_data["fig"] = fig
     plot_data["axes"] = axes
     plot_data["num_row"] = num_row
     plot_data["num_col"] = num_col

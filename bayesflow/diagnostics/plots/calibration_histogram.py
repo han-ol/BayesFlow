@@ -6,13 +6,12 @@ from typing import Sequence
 from scipy.stats import binom
 
 from bayesflow.utils import logging
-from bayesflow.utils import preprocess, add_titles_and_labels, prettify_subplots
+from bayesflow.utils import prepare_plot_data, add_titles_and_labels, prettify_subplots
 
 
 def calibration_histogram(
     post_samples: dict[str, np.ndarray] | np.ndarray,
     prior_samples: dict[str, np.ndarray] | np.ndarray,
-    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     figsize: Sequence[float] = None,
     num_bins: int = 10,
@@ -71,15 +70,21 @@ def calibration_histogram(
         If there is a deviation form the expected shapes of `post_samples` and `prior_samples`.
     """
 
-    # Preprocessing
-    plot_data = preprocess(post_samples, prior_samples, filter_keys, variable_names, num_col, num_row, figsize=figsize)
-    plot_data["post_samples"] = plot_data.pop("post_variables")
-    plot_data["prior_samples"] = plot_data.pop("prior_variables")
+    plot_data = prepare_plot_data(
+        estimates=post_samples,
+        ground_truths=prior_samples,
+        variable_names=variable_names,
+        num_col=num_col,
+        num_row=num_row,
+        figsize=figsize,
+    )
+    post_samples = plot_data.pop("estimates")
+    prior_samples = plot_data.pop("ground_truths")
 
     # Determine the ratio of simulations to prior draw
     # num_params = plot_data['num_variables']
-    num_sims = plot_data["post_samples"].shape[0]
-    num_draws = plot_data["post_samples"].shape[1]
+    num_sims = post_samples.shape[0]
+    num_draws = post_samples.shape[1]
 
     ratio = int(num_sims / num_draws)
 
@@ -99,10 +104,10 @@ def calibration_histogram(
             num_bins = 4
 
     # Compute ranks (using broadcasting)
-    ranks = np.sum(plot_data["post_samples"] < plot_data["prior_samples"][:, np.newaxis, :], axis=1)
+    ranks = np.sum(post_samples < prior_samples[:, np.newaxis, :], axis=1)
 
     # Compute confidence interval and mean
-    num_trials = int(plot_data["prior_samples"].shape[0])
+    num_trials = int(prior_samples.shape[0])
     # uniform distribution expected -> for all bins: equal probability
     # p = 1 / num_bins that a rank lands in that bin
     endpoints = binom.interval(binomial_interval, num_trials, 1 / num_bins)

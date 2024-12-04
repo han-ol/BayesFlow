@@ -4,13 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-from bayesflow.utils import expected_calibration_error, preprocess, add_titles_and_labels, add_metric, prettify_subplots
+from bayesflow.utils import (
+    expected_calibration_error,
+    prepare_plot_data,
+    add_titles_and_labels,
+    add_metric,
+    prettify_subplots,
+)
 
 
 def mc_calibration(
     pred_models: dict[str, np.ndarray] | np.ndarray,
     true_models: dict[str, np.ndarray] | np.ndarray,
-    names: Sequence[str] = None,
+    model_names: Sequence[str] = None,
     num_bins: int = 10,
     label_fontsize: int = 16,
     title_fontsize: int = 18,
@@ -32,7 +38,7 @@ def mc_calibration(
         The one-hot-encoded true model indices per data set.
     pred_models       : np.ndarray of shape (num_data_sets, num_models)
         The predicted posterior model probabilities (PMPs) per data set.
-    names             : list or None, optional, default: None
+    model_names       : list or None, optional, default: None
         The model names for nice plot titles. Inferred if None.
     num_bins          : int, optional, default: 10
         The number of bins to use for the calibration curves (and marginal histograms).
@@ -60,11 +66,19 @@ def mc_calibration(
     fig : plt.Figure - the figure instance for optional saving
     """
 
-    plot_data = preprocess(pred_models, true_models, names, num_col, num_row, figsize, context="M")
+    # Gather plot data and metadata into a dictionary
+    plot_data = prepare_plot_data(
+        estimates=pred_models,
+        ground_truths=true_models,
+        variable_names=model_names,
+        num_col=num_col,
+        num_row=num_row,
+        figsize=figsize,
+    )
 
     # Compute calibration
     cal_errors, true_probs, pred_probs = expected_calibration_error(
-        plot_data["prior_samples"], plot_data["post_samples"], num_bins
+        plot_data["ground_truths"], plot_data["estimates"], num_bins
     )
 
     for j, ax in enumerate(plot_data["axes"].flat):
@@ -73,10 +87,8 @@ def mc_calibration(
 
         # Plot PMP distribution over bins
         uniform_bins = np.linspace(0.0, 1.0, num_bins + 1)
-        norm_weights = np.ones_like(plot_data["post_samples"]) / len(plot_data["post_samples"])
-        ax[j].hist(
-            plot_data["post_samples"][:, j], bins=uniform_bins, weights=norm_weights[:, j], color="grey", alpha=0.3
-        )
+        norm_weights = np.ones_like(plot_data["estimates"]) / len(plot_data["estimates"])
+        ax[j].hist(plot_data["estimates"][:, j], bins=uniform_bins, weights=norm_weights[:, j], color="grey", alpha=0.3)
 
         # Plot AB line
         ax[j].plot((0, 1), (0, 1), "--", color="black", alpha=0.9)

@@ -9,9 +9,8 @@ from bayesflow.utils.dict_utils import dicts_to_arrays
 
 def pairs_samples(
     samples: dict[str, np.ndarray] | np.ndarray = None,
-    filter_keys: Sequence[str] = None,
     context: str = None,
-    variable_names: list = None,
+    variable_names: Sequence[str] = None,
     height: float = 2.5,
     color: str | tuple = "#132a70",
     alpha: float = 0.9,
@@ -45,25 +44,17 @@ def pairs_samples(
         Additional keyword arguments passed to the sns.PairGrid constructor
     """
 
-    plot_data = dicts_to_arrays(
-        post_variables=samples, filter_keys=filter_keys, variable_names=variable_names, context=context
-    )
+    plot_data = dicts_to_arrays(estimates=samples, variable_names=variable_names, default_name=context)
 
-    dim = plot_data["post_variables"].shape[-1]
+    dim = plot_data["estimates"].shape[-1]
     if context is None:
         context = "Default"
 
-    # Generic variable names
-    if variable_names is None:
-        titles = [f"{context} $\\theta_{{{i}}}$" for i in range(1, dim + 1)]
-    else:
-        titles = [f"{context} {p}" for p in variable_names]
-
     # Convert samples to pd.DataFrame
     if context == "Posterior":
-        data_to_plot = pd.DataFrame(plot_data["post_variables"][0], columns=titles)
+        data_to_plot = pd.DataFrame(plot_data["estimates"][0], columns=plot_data["variable_names"])
     else:
-        data_to_plot = pd.DataFrame(plot_data["post_variables"], columns=titles)
+        data_to_plot = pd.DataFrame(plot_data["estimates"], columns=plot_data["variable_names"])
 
     # Generate plots
     artist = sns.PairGrid(data_to_plot, height=height, **kwargs)

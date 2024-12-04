@@ -1,7 +1,7 @@
 from typing import Sequence
-
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -15,6 +15,7 @@ from bayesflow.approximators import ContinuousApproximator
 from bayesflow.types import Shape
 from bayesflow.utils import find_inference_network, find_summary_network
 from bayesflow.diagnostics import metrics as bf_metrics
+from bayesflow.diagnostics import plots as bf_plots
 
 from .workflow import Workflow
 
@@ -37,6 +38,46 @@ class BasicWorkflow(Workflow):
         standardize: Sequence[str] | str = "inference_variables",
         **kwargs,
     ):
+        """
+        BasicWorkflow class for Bayesian inference workflows.
+
+        This class provides methods to set up, simulate, adapt, and fit models using
+        simulation-based inference. It allows for both online and offline data workflows.
+
+        Parameters
+        ----------
+        simulator : Simulator, optional
+            A Simulator object to generate synthetic data for inference (default is None).
+        adapter : Adapter, optional
+            Adapter for data processing. If not provided, a default adapter will be used (default is None).
+        inference_network : InferenceNetwork or str, optional
+            The inference network used for posterior approximation, specified as an instance or by
+            name (default is "coupling_flow").
+        summary_network : SummaryNetwork or str, optional
+            The summary network used for data summarization, specified as an instance or by name (default is None).
+        initial_learning_rate : float, optional
+            Initial learning rate for the optimizer (default is 5e-4).
+        optimizer : type, optional
+            The optimizer to be used for training. If None, a default Adam optimizer will be selected (default is None).
+        checkpoint_filepath : str, optional
+            Directory path where model checkpoints will be saved (default is None).
+        checkpoint_name : str, optional
+            Name of the checkpoint file (default is "model").
+        save_weights_only : bool, optional
+            If True, only the model weights will be saved during checkpointing (default is False).
+        inference_variables : Sequence[str] or str, optional
+            Variables for inference as a sequence of strings or a single string (default is "theta").
+            Important for automating diagnostics!
+        inference_conditions : Sequence[str] or str, optional
+            Variables used as conditions for inference (default is "x").
+        summary_variables : Sequence[str] or str, optional
+            Variables for summarizing data, if any (default is None).
+        standardize : Sequence[str] or str, optional
+            Variables to standardize during preprocessing (default is "inference_variables").
+        **kwargs : dict, optional
+            Additional arguments for configuring networks, adapters, optimizers, etc.
+        """
+
         self.inference_network = find_inference_network(inference_network, **kwargs.get("inference_kwargs", {}))
 
         if summary_network is not None:
@@ -68,6 +109,7 @@ class BasicWorkflow(Workflow):
         self.checkpoint_filepath = checkpoint_filepath
         self.checkpoint_name = checkpoint_name
         self.save_weights_only = save_weights_only
+        self.history = None
 
     @staticmethod
     def default_adapter(
@@ -116,14 +158,60 @@ class BasicWorkflow(Workflow):
     def log_prob(self, data: dict[str, np.ndarray], **kwargs):
         return self.approximator.log_prob(data=data)
 
-    def plot_diagnostics(self, test_data: dict[str, np.ndarray] | int = None):
-        pass
+    def plot_diagnostics(
+        self,
+        test_data: dict[str, np.ndarray] | int,
+        num_samples: int = 1000,
+        variable_names: Sequence[str] = None,
+        as_pandas: bool = True,
+        **kwargs,
+    ) -> dict[str, plt.Figure]:
+        if isinstance(test_data, int) and self.simulator is not None:
+            test_data = self.simulator.sample(test_data, **kwargs.pop("test_data_kwargs", {}))
+        elif isinstance(test_data, int):
+            raise ValueError(f"No simulator found for generating {test_data} data sets.")
+
+        if isinstance(self.inference_variables, str):
+            inference_variables = {self.inference_variables: test_data.pop(self.inference_variables)}
+        else:
+            inference_variables = {k: test_data.pop(k) for k in self.inference_variables}
+
+        post_samples = self.approximator.sample(
+            num_samples=num_samples, conditions=test_data, **kwargs.get("approximator_kwargs", {})
+        )
+
+        figures = dict()
+
+        if self.history is not None:
+            figures["losses"] = bf_plots.loss(self.history, **kwargs.get("loss_kwargs", {}))
+
+        figures["recovery"] = bf_plots.recovery(
+            post_samples=post_samples,
+            prior_samples=inference_variables,
+            variable_names=variable_names,
+            **kwargs.get("recovery_kwargs", {}),
+        )
+
+        figures["calibration_ecdf"] = bf_plots.calibration_ecdf(
+            post_samples=post_samples,
+            prior_samples=inference_variables,
+            variable_names=variable_names,
+            **kwargs.get("calibration_ecdf_kwargs", {}),
+        )
+
+        figures["z_score_contraction"] = bf_plots.z_score_contraction(
+            post_samples=post_samples,
+            prior_samples=inference_variables,
+            variable_names=variable_names,
+            **kwargs.get("z_score_contraction_kwargs", {}),
+        )
+
+        return figures
 
     def compute_diagnostics(
         self,
         test_data: dict[str, np.ndarray] | int,
         num_samples: int = 1000,
-        filter_keys: Sequence[str] = None,
         variable_names: Sequence[str] = None,
         as_pandas: bool = True,
         **kwargs,
@@ -133,30 +221,32 @@ class BasicWorkflow(Workflow):
         elif isinstance(test_data, int):
             raise ValueError(f"No simulator found for generating {test_data} data sets.")
 
-        inference_variables = test_data.pop(self.inference_variables)
+        if isinstance(self.inference_variables, str):
+            inference_variables = {self.inference_variables: test_data.pop(self.inference_variables)}
+        else:
+            inference_variables = {k: test_data.pop(k) for k in self.inference_variables}
 
-        post_samples = self.approximator.sample(num_samples=num_samples, conditions=test_data, **kwargs)
+        post_samples = self.approximator.sample(
+            num_samples=num_samples, conditions=test_data, **kwargs.get("approximator_kwargs", {})
+        )
 
-        rmse = bf_metrics.root_mean_squared_error(
+        root_mean_squared_error = bf_metrics.root_mean_squared_error(
             post_samples=post_samples,
-            prior_samples={self.inference_variables: inference_variables},
-            filter_keys=filter_keys,
+            prior_samples=inference_variables,
             variable_names=variable_names,
             **kwargs.get("root_mean_squared_error_kwargs", {}),
         )
 
         contraction = bf_metrics.posterior_contraction(
             post_samples=post_samples,
-            prior_samples={self.inference_variables: inference_variables},
-            filter_keys=filter_keys,
+            prior_samples=inference_variables,
             variable_names=variable_names,
             **kwargs.get("posterior_contraction_kwargs", {}),
         )
 
         calibration_errors = bf_metrics.calibration_error(
             post_samples=post_samples,
-            prior_samples={self.inference_variables: inference_variables},
-            filter_keys=filter_keys,
+            prior_samples=inference_variables,
             variable_names=variable_names,
             **kwargs.get("calibration_error_kwargs", {}),
         )
@@ -164,14 +254,14 @@ class BasicWorkflow(Workflow):
         if as_pandas:
             metrics = pd.DataFrame(
                 {
-                    rmse["metric_name"]: rmse["values"],
+                    root_mean_squared_error["metric_name"]: root_mean_squared_error["values"],
                     contraction["metric_name"]: contraction["values"],
                     calibration_errors["metric_name"]: calibration_errors["values"],
                 },
-                index=rmse["variable_names"],
+                index=root_mean_squared_error["variable_names"],
             ).T
         else:
-            metrics = (rmse, contraction, calibration_errors)
+            metrics = (root_mean_squared_error, contraction, calibration_errors)
 
         return metrics
 
@@ -270,8 +360,10 @@ class BasicWorkflow(Workflow):
             self.approximator.compile(optimizer=self.optimizer, metrics=kwargs.pop("metrics", None))
 
         try:
-            history = self.approximator.fit(dataset=dataset, epochs=epochs, validation_data=validation_data, **kwargs)
-            return history
+            self.history = self.approximator.fit(
+                dataset=dataset, epochs=epochs, validation_data=validation_data, **kwargs
+            )
+            return self.history
         except Exception as err:
             raise err
         finally:

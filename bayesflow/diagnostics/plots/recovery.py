@@ -5,13 +5,12 @@ import numpy as np
 
 from scipy.stats import median_abs_deviation
 
-from bayesflow.utils import preprocess, prettify_subplots, make_quadratic, add_titles_and_labels, add_metric
+from bayesflow.utils import prepare_plot_data, prettify_subplots, make_quadratic, add_titles_and_labels, add_metric
 
 
 def recovery(
     post_samples: dict[str, np.ndarray] | np.ndarray,
     prior_samples: dict[str, np.ndarray] | np.ndarray,
-    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     point_agg=np.median,
     uncertainty_agg=median_abs_deviation,
@@ -60,15 +59,23 @@ def recovery(
     """
 
     # Gather plot data and metadata into a dictionary
-    plot_data = preprocess(post_samples, prior_samples, filter_keys, variable_names, num_col, num_row, figsize)
-    plot_data["post_samples"] = plot_data.pop("post_variables")
-    plot_data["prior_samples"] = plot_data.pop("prior_variables")
+    plot_data = prepare_plot_data(
+        estimates=post_samples,
+        ground_truths=prior_samples,
+        variable_names=variable_names,
+        num_col=num_col,
+        num_row=num_row,
+        figsize=figsize,
+    )
+
+    post_samples = plot_data.pop("estimates")
+    prior_samples = plot_data.pop("ground_truths")
 
     # Compute point estimates and uncertainties
-    point_estimate = point_agg(plot_data["post_samples"], axis=1)
+    point_estimate = point_agg(post_samples, axis=1)
 
     if uncertainty_agg is not None:
-        u = uncertainty_agg(plot_data["post_samples"], axis=1)
+        u = uncertainty_agg(post_samples, axis=1)
 
     for i, ax in enumerate(np.atleast_1d(plot_data["axes"].flat)):
         if i >= plot_data["num_variables"]:
@@ -77,7 +84,7 @@ def recovery(
         # Add scatter and error bars
         if uncertainty_agg is not None:
             _ = ax.errorbar(
-                plot_data["prior_samples"][:, i],
+                prior_samples[:, i],
                 point_estimate[:, i],
                 yerr=u[:, i],
                 fmt="o",
@@ -86,12 +93,12 @@ def recovery(
                 **kwargs,
             )
         else:
-            _ = ax.scatter(plot_data["prior_samples"][:, i], point_estimate[:, i], alpha=0.5, color=color, **kwargs)
+            _ = ax.scatter(prior_samples[:, i], point_estimate[:, i], alpha=0.5, color=color, **kwargs)
 
-        make_quadratic(ax, plot_data["prior_samples"][:, i], point_estimate[:, i])
+        make_quadratic(ax, prior_samples[:, i], point_estimate[:, i])
 
         if add_corr:
-            corr = np.corrcoef(plot_data["prior_samples"][:, i], point_estimate[:, i])[0, 1]
+            corr = np.corrcoef(prior_samples[:, i], point_estimate[:, i])[0, 1]
             add_metric(ax=ax, metric_text="$r$", metric_value=corr, metric_fontsize=metric_fontsize)
 
         ax.set_title(plot_data["variable_names"][i], fontsize=title_fontsize)

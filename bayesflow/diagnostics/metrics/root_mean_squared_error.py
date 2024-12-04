@@ -1,4 +1,4 @@
-from typing import Sequence, Any
+from typing import Sequence, Any, Mapping, Callable
 
 import numpy as np
 
@@ -6,13 +6,12 @@ from ...utils.dict_utils import dicts_to_arrays
 
 
 def root_mean_squared_error(
-    post_samples: dict[str, np.ndarray] | np.ndarray,
-    prior_samples: dict[str, np.ndarray] | np.ndarray,
+    post_samples: Mapping[str, np.ndarray] | np.ndarray,
+    prior_samples: Mapping[str, np.ndarray] | np.ndarray,
     normalize: bool = True,
-    aggregation: callable = np.median,
-    filter_keys: Sequence[str] = None,
+    aggregation: Callable = np.median,
     variable_names: Sequence[str] = None,
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """Computes the (Normalized) Root Mean Squared Error (RMSE/NRMSE) for the given posterior and prior samples.
 
     Parameters
@@ -26,8 +25,6 @@ def root_mean_squared_error(
         Whether to normalize the RMSE using the range of the prior samples.
     aggregation    : callable, optional (default = np.median)
         Function to aggregate the RMSE across draws. Typically `np.mean` or `np.median`.
-    filter_keys    : Sequence[str], optional (default = None)
-        Optional variable names to filter out of the metric computation.
     variable_names : Sequence[str], optional (default = None)
         Optional variable names to select from the available variables.
 
@@ -35,8 +32,6 @@ def root_mean_squared_error(
     -----
     Aggregation is performed after computing the RMSE for each posterior draw, instead of first aggregating
     the posterior draws and then computing the RMSE between aggregates and ground truths.
-
-    #TODO - Enable dicts as arguments
 
     Returns
     -------
@@ -50,12 +45,12 @@ def root_mean_squared_error(
             The (inferred) variable names.
     """
 
-    samples = dicts_to_arrays(post_samples, prior_samples, filter_keys, variable_names)
+    samples = dicts_to_arrays(estimates=post_samples, ground_truths=prior_samples, variable_names=variable_names)
 
-    rmse = np.sqrt(np.mean((samples["post_variables"] - samples["prior_variables"][:, None, :]) ** 2, axis=0))
+    rmse = np.sqrt(np.mean((samples["estimates"] - samples["ground_truths"][:, None, :]) ** 2, axis=0))
 
     if normalize:
-        rmse /= (samples["prior_variables"].max(axis=0) - samples["prior_variables"].min(axis=0))[None, :]
+        rmse /= (samples["ground_truths"].max(axis=0) - samples["ground_truths"].min(axis=0))[None, :]
         metric_name = "NRMSE"
     else:
         metric_name = "RMSE"

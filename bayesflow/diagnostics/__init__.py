@@ -8,7 +8,6 @@ from .plots import (
     mc_confusion_matrix,
     mmd_hypothesis_test,
     pairs_posterior,
-    pairs_prior,
     pairs_samples,
     recovery,
     z_score_contraction,

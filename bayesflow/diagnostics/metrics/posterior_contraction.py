@@ -1,4 +1,4 @@
-from typing import Sequence, Any
+from typing import Sequence, Any, Mapping, Callable
 
 import numpy as np
 
@@ -6,12 +6,11 @@ from ...utils.dict_utils import dicts_to_arrays
 
 
 def posterior_contraction(
-    post_samples: dict[str, np.ndarray] | np.ndarray,
-    prior_samples: dict[str, np.ndarray] | np.ndarray,
-    aggregation: callable = np.median,
-    filter_keys: Sequence[str] = None,
+    post_samples: Mapping[str, np.ndarray] | np.ndarray,
+    prior_samples: Mapping[str, np.ndarray] | np.ndarray,
+    aggregation: Callable = np.median,
     variable_names: Sequence[str] = None,
-) -> dict[str, Any]:
+) -> Mapping[str, Any]:
     """Computes the posterior contraction (PC) from prior to posterior for the given samples.
 
     Parameters
@@ -23,8 +22,6 @@ def posterior_contraction(
         Prior samples, comprising `num_datasets` ground truths.
     aggregation    : callable, optional (default = np.median)
         Function to aggregate the PC across draws. Typically `np.mean` or `np.median`.
-    filter_keys    : Sequence[str], optional (default = None)
-        Optional variable names to filter out of the metric computation.
     variable_names : Sequence[str], optional (default = None)
         Optional variable names to select from the available variables.
 
@@ -46,10 +43,10 @@ def posterior_contraction(
     indicate low contraction.
     """
 
-    samples = dicts_to_arrays(post_samples, prior_samples, filter_keys, variable_names)
+    samples = dicts_to_arrays(estimates=post_samples, ground_truths=prior_samples, variable_names=variable_names)
 
-    post_vars = samples["post_variables"].var(axis=1, ddof=1)
-    prior_vars = samples["prior_variables"].var(axis=0, keepdims=True, ddof=1)
+    post_vars = samples["estimates"].var(axis=1, ddof=1)
+    prior_vars = samples["ground_truths"].var(axis=0, keepdims=True, ddof=1)
     contraction = 1 - (post_vars / prior_vars)
     contraction = aggregation(contraction, axis=0)
     return {"values": contraction, "metric_name": "Posterior Contraction", "variable_names": samples["variable_names"]}

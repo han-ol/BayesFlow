@@ -41,7 +41,7 @@ from .validators import check_lengths_same
 from .comp_utils import expected_calibration_error
 from .plot_utils import (
     check_posterior_prior_shapes,
-    preprocess,
+    prepare_plot_data,
     add_titles_and_labels,
     prettify_subplots,
     make_quadratic,

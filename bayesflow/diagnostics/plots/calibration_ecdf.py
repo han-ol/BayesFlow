@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from typing import Sequence
-from ...utils.plot_utils import preprocess, add_titles_and_labels, prettify_subplots
+from ...utils.plot_utils import prepare_plot_data, add_titles_and_labels, prettify_subplots
 from ...utils.ecdf import simultaneous_ecdf_bands
 from ...utils.ecdf.ranks import fractional_ranks, distance_ranks
 
@@ -10,7 +10,6 @@ from ...utils.ecdf.ranks import fractional_ranks, distance_ranks
 def calibration_ecdf(
     post_samples: dict[str, np.ndarray] | np.ndarray,
     prior_samples: dict[str, np.ndarray] | np.ndarray,
-    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     difference: bool = False,
     stacked: bool = False,
@@ -115,21 +114,24 @@ def calibration_ecdf(
         If an unknown `rank_type` is passed.
     """
 
-    # Preprocessing
-    plot_data = preprocess(
-        post_samples, prior_samples, filter_keys, variable_names, num_col, num_row, figsize, stacked=stacked
+    plot_data = prepare_plot_data(
+        estimates=post_samples,
+        ground_truths=prior_samples,
+        variable_names=variable_names,
+        num_col=num_col,
+        num_row=num_row,
+        figsize=figsize,
+        stacked=stacked,
     )
-    plot_data["post_samples"] = plot_data.pop("post_variables")
-    plot_data["prior_samples"] = plot_data.pop("prior_variables")
+    post_samples = plot_data.pop("estimates")
+    prior_samples = plot_data.pop("ground_truths")
 
     if rank_type == "fractional":
         # Compute fractional ranks
-        ranks = fractional_ranks(plot_data["post_samples"], plot_data["prior_samples"])
+        ranks = fractional_ranks(post_samples, prior_samples)
     elif rank_type == "distance":
         # Compute ranks based on distance to the origin
-        ranks = distance_ranks(
-            plot_data["post_samples"], plot_data["prior_samples"], stacked=stacked, **kwargs.pop("ranks_kwargs", {})
-        )
+        ranks = distance_ranks(post_samples, prior_samples, stacked=stacked, **kwargs.pop("ranks_kwargs", {}))
     else:
         raise ValueError(f"Unknown rank type: {rank_type}. Use 'fractional' or 'distance'.")
 
@@ -154,7 +156,7 @@ def calibration_ecdf(
             plot_data["axes"].flat[j].plot(xx, yy, color=rank_ecdf_color, alpha=0.95, label="Rank ECDF")
 
     # Compute uniform ECDF and bands
-    alpha, z, L, H = simultaneous_ecdf_bands(plot_data["post_samples"].shape[0], **kwargs.pop("ecdf_bands_kwargs", {}))
+    alpha, z, L, H = simultaneous_ecdf_bands(post_samples.shape[0], **kwargs.pop("ecdf_bands_kwargs", {}))
 
     # Difference, if specified
     if difference:

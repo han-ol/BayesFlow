@@ -1,8 +1,8 @@
+from collections.abc import Callable, Mapping, Sequence
+
 import inspect
 import keras
-from typing import TypeVar
-
-from collections.abc import Callable, Mapping, Sequence
+from typing import TypeVar, Any
 
 import numpy as np
 
@@ -105,11 +105,15 @@ def split_tensors(data: Mapping[any, Tensor], axis: int = -1) -> Mapping[any, Te
     return result
 
 
-def split_arrays(data: Mapping[any, np.ndarray], axis: int = -1) -> Mapping[any, np.ndarray]:
+def split_arrays(data: Mapping[str, np.ndarray], axis: int = -1) -> Mapping[str, np.ndarray]:
     """Split tensors in the dictionary along the given axis."""
     result = {}
 
     for key, value in data.items():
+        if len(value.shape) == 1:
+            result[key] = value
+            continue
+
         if value.shape[axis] == 1:
             result[key] = np.squeeze(value, axis=axis)
             continue
@@ -124,57 +128,78 @@ def split_arrays(data: Mapping[any, np.ndarray], axis: int = -1) -> Mapping[any,
 
 
 def dicts_to_arrays(
-    post_variables: dict[str, np.ndarray] | np.ndarray,
-    prior_variables: dict[str, np.ndarray] | np.ndarray = None,
-    filter_keys: Sequence[str] | None = None,
+    estimates: Mapping[str, np.ndarray] | np.ndarray,
+    ground_truths: Mapping[str, np.ndarray] | np.ndarray = None,
     variable_names: Sequence[str] = None,
-    context: str = None,
-):
-    """
-    # TODO
+    default_name: str = "var",
+) -> Mapping[str, Any]:
+    """Helper function that prepares estimates and optional ground truths for diagnostics
+    (plotting or computation of metrics).
+
+    The function operates on both arrays and dictionaries and assumes either a dictionary
+    where each key contains a 1D or a 2D array (i.e., a univariate quantity or samples thereof)
+    or a 2D or 3D array where the last axis represents all quantities of interest.
+
+    If a `ground_truths` array is provided, it must correspond to estimates in terms of type
+    and structure of the first and last axis.
+
+    If a dictionary is provided, `variable_names` acts as a filter to select variables from
+    estimates. If an array is provided, `variable_names` can be used to override the `default_name`.
+
+    Parameters
+    ----------
+    estimates   : dict[str, ndarray] or ndarray
+        The model-generated estimates, which can take the following forms:
+        - ndarray of shape (num_datasets, num_variables)
+            Point estimates for each dataset, where `num_datasets` is the number of datasets
+            and `num_variables` is the number of variables per dataset.
+        - ndarray of shape (num_datasets, num_draws, num_variables)
+            Posterior samples for each dataset, where `num_datasets` is the number of datasets,
+            `num_draws` is the number of posterior draws, and `num_variables` is the number of variables.
+
+    ground_truths : dict[str, ndarray] or ndarray, optional (default = None)
+        Ground truth values corresponding to the estimates. Must match the structure and dimensionality
+        of `estimates` in terms of first and last axis.
+
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to act as a filter if dicts provided or actual variable names in case of array
+        inputs.
+    default_name   : str, optional (default = "v")
+        The default variable name to use if array arguments and no variable names are provided.
+
+    Returns
+    -------
+    None
+        This function or class does not return a value directly.
     """
 
     # Ensure that posterior and prior variables have the same type
-    if prior_variables is not None:
-        if type(post_variables) is not type(prior_variables):
+    if ground_truths is not None:
+        if type(estimates) is not type(ground_truths):
             raise ValueError("You should either use dicts or tensors, but not separate types for your inputs.")
 
-    # Filtering
-    if isinstance(post_variables, dict):
-        # Ensure that the keys of selected posterior and prior variables match
-        if prior_variables is not None:
-            if not (set(post_variables) <= set(prior_variables)):
-                raise ValueError("Keys in your posterior / prior arrays should match.")
+    # Case dictionaries provided
+    if isinstance(estimates, dict):
+        estimates = split_arrays(estimates)
+        variable_names = list(estimates.keys()) if variable_names is None else variable_names
+        estimates = np.stack([v for k, v in estimates.items() if k in variable_names], axis=-1)
 
-        # If they match, users can further select the variables by using filter keys
-        filter_keys = list(post_variables.keys()) if filter_keys is None else filter_keys
+        if ground_truths is not None:
+            ground_truths = split_arrays(ground_truths)
+            ground_truths = np.stack([v for k, v in ground_truths.items() if k in variable_names], axis=-1)
 
-        # The variables will then be overridden with the filtered keys
-        post_variables = np.concatenate([v for k, v in post_variables.items() if k in filter_keys], axis=-1)
-        if prior_variables is not None:
-            prior_variables = np.concatenate([v for k, v in prior_variables.items() if k in filter_keys], axis=-1)
+    # Case arrays provided
+    elif isinstance(estimates, np.ndarray):
+        if variable_names is None:
+            variable_names = [f"${default_name}_{{{i}}}$" for i in range(estimates.shape[-1])]
 
-    # Naming or Renaming
-    elif isinstance(post_variables, np.ndarray):
-        # If there are filter_keys, check if their number is the same as that of the variables.
-        # If it does, check if there are sufficient variable names.
-        # If there are, then the variable names are adopted.
-        if variable_names is not None:
-            if post_variables.shape[-1] != len(variable_names) or prior_variables.shape[-1] != len(variable_names):
-                raise ValueError("The number of variable names should match the number of target variables.")
-
-        else:  # Otherwise, we would assume that all variables are used for plotting.
-            if context is None:
-                if variable_names is None:
-                    variable_names = [f"$\\theta_{{{i}}}$" for i in range(post_variables.shape[-1])]
-            else:
-                variable_names = [f"${context}_{{{i}}}$" for i in range(post_variables.shape[-1])]
+    # Throw if unknown type
     else:
         raise TypeError("Only dicts and tensors are supported as arguments.")
 
     return dict(
-        post_variables=post_variables,
-        prior_variables=prior_variables,
+        estimates=estimates,
+        ground_truths=ground_truths,
         variable_names=variable_names,
         num_variables=len(variable_names),
     )

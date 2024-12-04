@@ -1,17 +1,18 @@
 from typing import Sequence
 
+import keras.src.callbacks
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-
 from ...utils.plot_utils import make_figure, add_titles_and_labels
 
 
 def loss(
-    train_losses: pd.DataFrame | np.ndarray,
-    val_losses: pd.DataFrame | np.ndarray = None,
+    history: keras.src.callbacks.History,
+    train_key: str = "loss",
+    val_key: str = "val_loss",
     moving_average: bool = False,
     per_training_step: bool = False,
     ma_window_fraction: float = 0.01,
@@ -25,22 +26,17 @@ def loss(
     title_fontsize: int = 16,
 ) -> plt.Figure:
     """
-    A generic helper function to plot the losses of a series of training epochs
-    and runs.
+    A generic helper function to plot the losses of a series of training epochs and runs.
 
     Parameters
     ----------
 
-    train_losses       : pd.DataFrame
-        The (plottable) history as returned by a train_[...] method of a
-        ``Trainer`` instance.
-        Alternatively, you can just pass a data frame of validation losses
-        instead of train losses, if you only want to plot the validation loss.
-    val_losses         : pd.DataFrame or None, optional, default: None
-        The (plottable) validation history as returned by a train_[...] method
-        of a ``Trainer`` instance.
-        If left ``None``, only train losses are plotted. Should have the same
-        number of columns as ``train_losses``.
+    history     : keras.src.callbacks.History
+        History object as returned by `keras.Model.fit`.
+    train_key   : str, optional, default: "loss"
+        The training loss key to look for in the history
+    val_key     : str, optional, default: "val_loss"
+        The validation loss key to look for in the history
     moving_average     : bool, optional, default: False
         A flag for adding a moving average line of the train_losses.
     per_training_step : bool, optional, default: False
@@ -76,17 +72,18 @@ def loss(
         If the number of columns in ``train_losses`` does not match the
         number of columns in ``val_losses``.
     """
-    if isinstance(train_losses, np.ndarray):
-        train_losses = pd.DataFrame(train_losses)
 
-    if isinstance(val_losses, np.ndarray):
-        val_losses = pd.DataFrame(val_losses)
+    train_losses = history.history.get(train_key)
+    val_losses = history.history.get(val_key)
+
+    train_losses = pd.DataFrame(np.array(train_losses))
+    val_losses = pd.DataFrame(np.array(val_losses)) if val_losses is not None else None
 
     # Determine the number of rows for plot
     num_row = len(train_losses.columns)
 
     # Initialize figure
-    fig, axes = make_figure(num_row=num_row, num_col=1, figsize=(16, int(4 * num_row) if figsize is None else figsize))
+    fig, axes = make_figure(num_row=num_row, num_col=1, figsize=(16, int(4 * num_row)) if figsize is None else figsize)
 
     # Get the number of steps as an array
     train_step_index = np.arange(1, len(train_losses) + 1)
@@ -133,7 +130,7 @@ def loss(
         axes=np.atleast_1d(axes),
         num_row=num_row,
         num_col=1,
-        title=train_losses.columns if num_row > 1 else ["Training Loss"],
+        title=["Loss Trajectory"],
         xlabel="Training step #" if per_training_step else "Training epoch #",
         ylabel="Value",
         title_fontsize=title_fontsize,
