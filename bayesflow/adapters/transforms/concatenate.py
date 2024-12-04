@@ -12,7 +12,14 @@ from .transform import Transform
 
 @serializable(package="bayesflow.adapters")
 class Concatenate(Transform):
-    """Concatenate multiple arrays into a new key."""
+    """Concatenate multiple arrays into a new key.
+    Parameters:
+
+    keys:
+
+    into:
+
+    """
 
     def __init__(self, keys: Sequence[str], *, into: str, axis: int = -1):
         self.keys = keys

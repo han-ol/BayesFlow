@@ -105,6 +105,24 @@ def split_tensors(data: Mapping[any, Tensor], axis: int = -1) -> Mapping[any, Te
     return result
 
 
+def split_arrays(data: Mapping[any, np.ndarray], axis: int = -1) -> Mapping[any, np.ndarray]:
+    """Split tensors in the dictionary along the given axis."""
+    result = {}
+
+    for key, value in data.items():
+        if value.shape[axis] == 1:
+            result[key] = np.squeeze(value, axis=axis)
+            continue
+
+        splits = np.split(value, value.shape[axis], axis=axis)
+        splits = [np.squeeze(split, axis=axis) for split in splits]
+
+        for i, split in enumerate(splits):
+            result[f"{key}_{i + 1}"] = split
+
+    return result
+
+
 def dicts_to_arrays(
     post_variables: dict[str, np.ndarray] | np.ndarray,
     prior_variables: dict[str, np.ndarray] | np.ndarray = None,

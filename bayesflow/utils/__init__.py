@@ -3,13 +3,7 @@ from . import (
     logging,
     numpy_utils,
 )
-from .dict_utils import (
-    convert_args,
-    convert_kwargs,
-    filter_kwargs,
-    keras_kwargs,
-    split_tensors,
-)
+from .dict_utils import convert_args, convert_kwargs, filter_kwargs, keras_kwargs, split_tensors, split_arrays
 from .dispatch import find_distribution, find_network, find_permutation, find_pooling, find_recurrent_net
 from .ecdf import simultaneous_ecdf_bands, ranks
 from .functional import batched_call
