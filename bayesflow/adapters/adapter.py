@@ -9,6 +9,7 @@ from keras.saving import (
 
 from .transforms import (
     AsSet,
+    AsTimeSeries,
     Broadcast,
     Concatenate,
     Constrain,
@@ -109,6 +110,14 @@ class Adapter:
             keys = [keys]
 
         transform = MapTransform({key: AsSet() for key in keys})
+        self.transforms.append(transform)
+        return self
+
+    def as_time_series(self, keys: str | Sequence[str]):
+        if isinstance(keys, str):
+            keys = [keys]
+
+        transform = MapTransform({key: AsTimeSeries() for key in keys})
         self.transforms.append(transform)
         return self
 
