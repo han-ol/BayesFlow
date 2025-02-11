@@ -61,7 +61,7 @@ def prepare_plot_data(
     fig, axes = make_figure(num_row, num_col, figsize=figsize)
 
     plot_data["fig"] = fig
-    plot_data["axes"] = np.atleast_1d(axes)
+    plot_data["axes"] = axes
     plot_data["num_row"] = num_row
     plot_data["num_col"] = num_col
 
