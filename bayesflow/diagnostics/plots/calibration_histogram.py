@@ -12,6 +12,7 @@ from bayesflow.utils import prepare_plot_data, add_titles_and_labels, prettify_s
 def calibration_histogram(
     targets: dict[str, np.ndarray] | np.ndarray,
     references: dict[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     figsize: Sequence[float] = None,
     num_bins: int = 10,
@@ -39,6 +40,9 @@ def calibration_histogram(
         The posterior draws obtained from n_data_sets
     references     : np.ndarray of shape (n_data_sets, n_params)
         The prior draws obtained for generating n_data_sets
+    filter_keys       : list or None, optional, default: None
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
     variable_names    : list or None, optional, default: None
         The parameter names for nice plot titles. Inferred if None
     figsize          : tuple or None, optional, default : None
@@ -73,6 +77,7 @@ def calibration_histogram(
     plot_data = prepare_plot_data(
         targets=targets,
         references=references,
+        filter_keys=filter_keys,
         variable_names=variable_names,
         num_col=num_col,
         num_row=num_row,

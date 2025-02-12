@@ -10,6 +10,7 @@ from ...utils.ecdf.ranks import fractional_ranks, distance_ranks
 def calibration_ecdf(
     targets: dict[str, np.ndarray] | np.ndarray,
     references: dict[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     difference: bool = False,
     stacked: bool = False,
@@ -69,6 +70,9 @@ def calibration_ecdf(
         You can pass a reference array in the same shape as the
         `prior_samples` array by setting `references` in the ``ranks_kwargs``.
         This is motivated by [2].
+    filter_keys       : list or None, optional, default: None
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
     variable_names    : list or None, optional, default: None
         The parameter names for nice plot titles.
         Inferred if None. Only relevant if `stacked=False`.
@@ -117,6 +121,7 @@ def calibration_ecdf(
     plot_data = prepare_plot_data(
         targets=targets,
         references=references,
+        filter_keys=filter_keys,
         variable_names=variable_names,
         num_col=num_col,
         num_row=num_row,

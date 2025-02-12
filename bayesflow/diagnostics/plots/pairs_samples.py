@@ -9,8 +9,9 @@ from bayesflow.utils.dict_utils import dicts_to_arrays
 
 def pairs_samples(
     samples: dict[str, np.ndarray] | np.ndarray = None,
-    context: str = None,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
+    context: str = None,
     height: float = 2.5,
     color: str | tuple = "#132a70",
     alpha: float = 0.9,
@@ -25,9 +26,14 @@ def pairs_samples(
     ----------
     samples     : dict[str, Tensor], default: None
         Sample draws from any dataset
+    filter_keys       : list or None, optional, default: None
+       Select keys from the dictionary provided in samples.
+       By default, select all keys.
+    variable_names    : list or None, optional, default: None
+        The parameter names for nice plot titles. Inferred if None
     context     : str, default: None
-        The context that the sample represents. If specified,
-        should usually either be `Prior` or `Posterior`.
+        The context that the sample represents.
+        If specified, should usually either be `Prior` or `Posterior`.
     height      : float, optional, default: 2.5
         The height of the pair plot
     color       : str, optional, default : '#8f2727'
@@ -44,7 +50,12 @@ def pairs_samples(
         Additional keyword arguments passed to the sns.PairGrid constructor
     """
 
-    plot_data = dicts_to_arrays(targets=samples, variable_names=variable_names, default_name=context)
+    plot_data = dicts_to_arrays(
+        targets=samples,
+        filter_keys=filter_keys,
+        variable_names=variable_names,
+        default_name=context,
+    )
 
     dim = plot_data["targets"].shape[-1]
     if context is None:

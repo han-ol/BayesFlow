@@ -11,15 +11,16 @@ from bayesflow.utils import prepare_plot_data, prettify_subplots, make_quadratic
 def recovery(
     targets: dict[str, np.ndarray] | np.ndarray,
     references: dict[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     point_agg=np.median,
     uncertainty_agg=median_abs_deviation,
+    add_corr: bool = True,
     figsize: Sequence[int] = None,
     label_fontsize: int = 16,
     title_fontsize: int = 18,
     metric_fontsize: int = 16,
     tick_fontsize: int = 12,
-    add_corr: bool = True,
     color: str = "#132a70",
     num_col: int = None,
     num_row: int = None,
@@ -46,7 +47,37 @@ def recovery(
 
     Parameters
     ----------
-    #TODO
+    targets           : np.ndarray of shape (num_datasets, num_post_draws, num_params)
+        The posterior draws obtained from num_datasets
+    references        : np.ndarray of shape (num_datasets, num_params)
+        The prior draws (true parameters) used for generating the num_datasets
+    filter_keys       : list or None, optional, default: None
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
+    variable_names    : list or None, optional, default: None
+        The individual parameter names for nice plot titles. Inferred if None
+    point_agg         : function to compute point estimates. Default: median
+    uncertainty_agg   : function to compute uncertainty estimates. Default: MAD
+    add_corr          : boolean, default: True
+        Should correlations between estimates and ground truth values be shown?
+    figsize           : tuple or None, optional, default : None
+        The figure size passed to the matplotlib constructor. Inferred if None.
+    label_fontsize    : int, optional, default: 16
+        The font size of the y-label text.
+    title_fontsize    : int, optional, default: 18
+        The font size of the title text.
+    metric_fontsize   : int, optional, default: 16
+        The font size of the metrics shown as text.
+    tick_fontsize     : int, optional, default: 12
+        The font size of the axis ticklabels.
+    color             : str, optional, default: '#8f2727'
+        The color for the true vs. estimated scatter points and error bars.
+    num_row           : int, optional, default: None
+        The number of rows for the subplots. Dynamically determined if None.
+    num_col           : int, optional, default: None
+        The number of columns for the subplots. Dynamically determined if None.
+    xlabel:
+    ylabel:
 
     Returns
     -------
@@ -62,6 +93,7 @@ def recovery(
     plot_data = prepare_plot_data(
         targets=targets,
         references=references,
+        filter_keys=filter_keys,
         variable_names=variable_names,
         num_col=num_col,
         num_row=num_row,

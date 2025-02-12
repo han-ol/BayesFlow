@@ -8,9 +8,10 @@ from ...utils.dict_utils import dicts_to_arrays
 def root_mean_squared_error(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
+    variable_names: Sequence[str] = None,
     normalize: bool = True,
     aggregation: Callable = np.median,
-    variable_names: Sequence[str] = None,
 ) -> Mapping[str, Any]:
     """Computes the (Normalized) Root Mean Squared Error (RMSE/NRMSE) for the given posterior and prior samples.
 
@@ -21,12 +22,15 @@ def root_mean_squared_error(
         for each data set from `num_datasets`.
     references  : np.ndarray of shape (num_datasets, num_variables)
         Prior samples, comprising `num_datasets` ground truths.
+    filter_keys : Sequence[str], optional (default = None)
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to show in the output.
     normalize      : bool, optional (default = True)
         Whether to normalize the RMSE using the range of the prior samples.
     aggregation    : callable, optional (default = np.median)
         Function to aggregate the RMSE across draws. Typically `np.mean` or `np.median`.
-    variable_names : Sequence[str], optional (default = None)
-        Optional variable names to select from the available variables.
 
     Notes
     -----
@@ -45,7 +49,12 @@ def root_mean_squared_error(
             The (inferred) variable names.
     """
 
-    samples = dicts_to_arrays(targets=targets, references=references, variable_names=variable_names)
+    samples = dicts_to_arrays(
+        targets=targets,
+        references=references,
+        filter_keys=filter_keys,
+        variable_names=variable_names,
+    )
 
     rmse = np.sqrt(np.mean((samples["targets"] - samples["references"][:, None, :]) ** 2, axis=0))
 

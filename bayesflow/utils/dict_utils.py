@@ -110,6 +110,10 @@ def split_arrays(data: Mapping[str, np.ndarray], axis: int = -1) -> Mapping[str,
     result = {}
 
     for key, value in data.items():
+        if not hasattr(value, "shape"):
+            result[key] = np.array([value])
+            continue
+
         if len(value.shape) == 1:
             result[key] = value
             continue
@@ -130,8 +134,9 @@ def split_arrays(data: Mapping[str, np.ndarray], axis: int = -1) -> Mapping[str,
 def dicts_to_arrays(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray = None,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
-    default_name: str = "var",
+    default_name: str = "v",
 ) -> Mapping[str, Any]:
     """Helper function that prepares estimates and optional ground truths for diagnostics
     (plotting or computation of metrics).
@@ -175,13 +180,23 @@ def dicts_to_arrays(
 
     # Case dictionaries provided
     if isinstance(targets, dict):
+        if filter_keys is not None:
+            targets = {k: targets[k] for k in filter_keys}
+
+        # to ensure safe subsetting of references if specified
+        filter_keys = targets.keys()
+
         targets = split_arrays(targets)
-        variable_names = list(targets.keys()) if variable_names is None else variable_names
-        targets = np.stack([v for k, v in targets.items() if k in variable_names], axis=-1)
+
+        if variable_names is None:
+            variable_names = list(targets.keys())
+
+        targets = np.stack(list(targets.values()), axis=-1)
 
         if references is not None:
+            references = {k: references[k] for k in filter_keys}
             references = split_arrays(references)
-            references = np.stack([v for k, v in references.items() if k in variable_names], axis=-1)
+            references = np.stack(list(references.values()), axis=-1)
 
     # Case arrays provided
     elif isinstance(targets, np.ndarray):
@@ -193,6 +208,9 @@ def dicts_to_arrays(
         raise TypeError(
             f"Only dicts and tensors are supported as arguments, but your targets are of type {type(targets)}"
         )
+
+    if len(variable_names) is not targets.shape[-1]:
+        raise ValueError("Length of 'variable_names' should be the same as the number of variables.")
 
     return dict(
         targets=targets,

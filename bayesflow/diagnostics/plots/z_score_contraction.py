@@ -9,6 +9,7 @@ from bayesflow.utils import prepare_plot_data, add_titles_and_labels, prettify_s
 def z_score_contraction(
     targets: dict[str, np.ndarray] | np.ndarray,
     references: dict[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     figsize: Sequence[int] = None,
     label_fontsize: int = 16,
@@ -56,6 +57,9 @@ def z_score_contraction(
         The posterior draws obtained from num_datasets
     references     : np.ndarray of shape (num_datasets, num_params)
         The prior draws (true parameters) used for generating the num_datasets
+    filter_keys       : list or None, optional, default: None
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
     variable_names    : list or None, optional, default: None
         The parameter names for nice plot titles. Inferred if None
     figsize           : tuple or None, optional, default : None
@@ -87,6 +91,7 @@ def z_score_contraction(
     plot_data = prepare_plot_data(
         targets=targets,
         references=references,
+        filter_keys=filter_keys,
         variable_names=variable_names,
         num_col=num_col,
         num_row=num_row,

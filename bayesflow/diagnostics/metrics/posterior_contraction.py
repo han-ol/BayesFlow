@@ -8,8 +8,9 @@ from ...utils.dict_utils import dicts_to_arrays
 def posterior_contraction(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray,
-    aggregation: Callable = np.median,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
+    aggregation: Callable = np.median,
 ) -> Mapping[str, Any]:
     """Computes the posterior contraction (PC) from prior to posterior for the given samples.
 
@@ -20,10 +21,13 @@ def posterior_contraction(
         for each data set from `num_datasets`.
     references  : np.ndarray of shape (num_datasets, num_variables)
         Prior samples, comprising `num_datasets` ground truths.
+    filter_keys : Sequence[str], optional (default = None)
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to show in the output.
     aggregation    : callable, optional (default = np.median)
         Function to aggregate the PC across draws. Typically `np.mean` or `np.median`.
-    variable_names : Sequence[str], optional (default = None)
-        Optional variable names to select from the available variables.
 
     Returns
     -------
@@ -43,7 +47,12 @@ def posterior_contraction(
     indicate low contraction.
     """
 
-    samples = dicts_to_arrays(targets=targets, references=references, variable_names=variable_names)
+    samples = dicts_to_arrays(
+        targets=targets,
+        references=references,
+        filter_keys=filter_keys,
+        variable_names=variable_names,
+    )
 
     post_vars = samples["targets"].var(axis=1, ddof=1)
     prior_vars = samples["references"].var(axis=0, keepdims=True, ddof=1)

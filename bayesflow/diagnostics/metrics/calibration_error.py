@@ -8,11 +8,12 @@ from ...utils.dict_utils import dicts_to_arrays
 def calibration_error(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
+    variable_names: Sequence[str] = None,
     resolution: int = 20,
     aggregation: Callable = np.median,
     min_quantile: float = 0.005,
     max_quantile: float = 0.995,
-    variable_names: Sequence[str] = None,
 ) -> Mapping[str, Any]:
     """Computes an aggregate score for the marginal calibration error over an ensemble of approximate
     posteriors. The calibration error is given as the aggregate (e.g., median) of the absolute deviation
@@ -25,6 +26,11 @@ def calibration_error(
         The random draws from the approximate posteriors over ``num_datasets``
     references : np.ndarray of shape (num_datasets, num_variables)
         The corresponding ground-truth values sampled from the prior
+    filter_keys : Sequence[str], optional (default = None)
+       Select keys from the dictionaries provided in targets and references.
+       By default, select all keys.
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to show in the output.
     resolution    : int, optional, default: 20
         The number of credibility intervals (CIs) to consider
     aggregation   : callable or None, optional, default: np.median
@@ -34,8 +40,6 @@ def calibration_error(
         The minimum posterior quantile to consider.
     max_quantile  : float in (0, 1), optional, default: 0.995
         The maximum posterior quantile to consider.
-    variable_names : Sequence[str], optional (default = None)
-        Optional variable names to select from the available variables.
 
     Returns
     -------
@@ -49,7 +53,12 @@ def calibration_error(
             The (inferred) variable names.
     """
 
-    samples = dicts_to_arrays(targets=targets, references=references, variable_names=variable_names)
+    samples = dicts_to_arrays(
+        targets=targets,
+        references=references,
+        filter_keys=filter_keys,
+        variable_names=variable_names,
+    )
 
     # Define alpha values and the corresponding quantile bounds
     alphas = np.linspace(start=min_quantile, stop=max_quantile, num=resolution)

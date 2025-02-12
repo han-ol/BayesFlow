@@ -11,6 +11,7 @@ from .dict_utils import dicts_to_arrays
 def prepare_plot_data(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray,
+    filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     num_col: int = None,
     num_row: int = None,
@@ -50,7 +51,11 @@ def prepare_plot_data(
     """
 
     plot_data = dicts_to_arrays(
-        targets=targets, references=references, variable_names=variable_names, default_name=default_name
+        targets=targets,
+        references=references,
+        filter_keys=filter_keys,
+        variable_names=variable_names,
+        default_name=default_name,
     )
     check_estimates_prior_shapes(plot_data["targets"], plot_data["references"])
 
