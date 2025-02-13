@@ -15,7 +15,8 @@ def pairs_samples(
     height: float = 2.5,
     color: str | tuple = "#132a70",
     alpha: float = 0.9,
-    render: bool = True,
+    label_fontsize: int = 14,
+    tick_fontsize: int = 12,
     **kwargs,
 ) -> sns.PairGrid:
     """
@@ -40,12 +41,10 @@ def pairs_samples(
         The color of the plot
     alpha       : float in [0, 1], optional, default: 0.9
         The opacity of the plot
-    variable_names : list or None, optional, default: None
-        The parameter names for nice plot titles. Inferred if None
-    render      : bool, optional, default: True
-        The boolean that determines whether to render the plot visually.
-        If true, then the plot will render;
-        otherwise, the plot will go through further steps for postprocessing.
+    label_fontsize    : int, optional, default: 14
+        The font size of the x and y-label texts (parameter names)
+    tick_fontsize     : int, optional, default: 12
+        The font size of the axis ticklabels
     **kwargs    : dict, optional
         Additional keyword arguments passed to the sns.PairGrid constructor
     """
@@ -57,18 +56,58 @@ def pairs_samples(
         default_name=context,
     )
 
-    dim = plot_data["targets"].shape[-1]
+    g = _pairs_samples(
+        plot_data=plot_data,
+        context=context,
+        height=height,
+        color=color,
+        alpha=alpha,
+        label_fontsize=label_fontsize,
+        tick_fontsize=tick_fontsize,
+    )
+
+    return g
+
+
+def _pairs_samples(
+    plot_data: dict,
+    context: str = None,
+    height: float = 2.5,
+    color: str | tuple = "#132a70",
+    alpha: float = 0.9,
+    label_fontsize: int = 14,
+    tick_fontsize: int = 12,
+    **kwargs,
+) -> sns.PairGrid:
+    # internal version of pairs_samples creating the seaborn plot
+
+    # Parameters
+    # ----------
+    # plot_data   : output of bayesflow.utils.dict_utils.dicts_to_arrays
+    # other arguments are documented in pairs_samples
+
     if context is None:
         context = "Default"
 
     # Convert samples to pd.DataFrame
+    # TODO: figure out if context is still needed
     if context == "Posterior":
         data_to_plot = pd.DataFrame(plot_data["targets"][0], columns=plot_data["variable_names"])
     else:
         data_to_plot = pd.DataFrame(plot_data["targets"], columns=plot_data["variable_names"])
 
-    # Generate plots
+    # initialize plot
     artist = sns.PairGrid(data_to_plot, height=height, **kwargs)
+
+    # Generate grids
+    # in the off diagonal plots, the grids appears in front of the points/densities
+    # TODO: can we put the grid in the background somehow?
+    dim = artist.axes.shape[0]
+    for i in range(dim):
+        for j in range(dim):
+            artist.axes[i, j].grid(alpha=0.5)
+
+    # add histograms + KDEs to the diagonal
     artist.map_diag(sns.histplot, fill=True, color=color, alpha=alpha, kde=True)
 
     # Incorporate exceptions for generating KDE plots
@@ -77,15 +116,22 @@ def pairs_samples(
     except Exception as e:
         logging.exception("KDE failed due to the following exception:\n" + repr(e) + "\nSubstituting scatter plot.")
         artist.map_lower(sns.scatterplot, alpha=0.6, s=40, edgecolor="k", color=color)
+
     artist.map_upper(sns.scatterplot, alpha=0.6, s=40, edgecolor="k", color=color)
 
-    if render:
-        # Generate grids
-        for i in range(dim):
-            for j in range(dim):
-                artist.axes[i, j].grid(alpha=0.5)
+    dim = artist.axes.shape[0]
+    for i in range(dim):
+        # Modify tick sizes
+        for j in range(i + 1):
+            artist.axes[i, j].tick_params(axis="both", which="major", labelsize=tick_fontsize)
+            artist.axes[i, j].tick_params(axis="both", which="minor", labelsize=tick_fontsize)
 
-        # Return figure
-        artist.tight_layout()
+        # adjust font size of labels
+        # the labels themselves remain the same as before, i.e., variable_names
+        artist.axes[i, 0].set_ylabel(plot_data["variable_names"][i], fontsize=label_fontsize)
+        artist.axes[dim - 1, i].set_xlabel(plot_data["variable_names"][i], fontsize=label_fontsize)
+
+    # Return figure
+    artist.tight_layout()
 
     return artist
