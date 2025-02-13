@@ -11,7 +11,6 @@ def pairs_samples(
     samples: dict[str, np.ndarray] | np.ndarray = None,
     filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
-    context: str = None,
     height: float = 2.5,
     color: str | tuple = "#132a70",
     alpha: float = 0.9,
@@ -32,9 +31,6 @@ def pairs_samples(
        By default, select all keys.
     variable_names    : list or None, optional, default: None
         The parameter names for nice plot titles. Inferred if None
-    context     : str, default: None
-        The context that the sample represents.
-        If specified, should usually either be `Prior` or `Posterior`.
     height      : float, optional, default: 2.5
         The height of the pair plot
     color       : str, optional, default : '#8f2727'
@@ -53,12 +49,10 @@ def pairs_samples(
         targets=samples,
         filter_keys=filter_keys,
         variable_names=variable_names,
-        default_name=context,
     )
 
     g = _pairs_samples(
         plot_data=plot_data,
-        context=context,
         height=height,
         color=color,
         alpha=alpha,
@@ -71,7 +65,6 @@ def pairs_samples(
 
 def _pairs_samples(
     plot_data: dict,
-    context: str = None,
     height: float = 2.5,
     color: str | tuple = "#132a70",
     alpha: float = 0.9,
@@ -86,15 +79,15 @@ def _pairs_samples(
     # plot_data   : output of bayesflow.utils.dict_utils.dicts_to_arrays
     # other arguments are documented in pairs_samples
 
-    if context is None:
-        context = "Default"
+    targets_shape = plot_data["targets"].shape
+    if len(targets_shape) != 2:
+        raise ValueError(
+            f"Samples for a single distribution should be a matrix, but "
+            f"your samples array has a shape of {targets_shape}."
+        )
 
     # Convert samples to pd.DataFrame
-    # TODO: figure out if context is still needed
-    if context == "Posterior":
-        data_to_plot = pd.DataFrame(plot_data["targets"][0], columns=plot_data["variable_names"])
-    else:
-        data_to_plot = pd.DataFrame(plot_data["targets"], columns=plot_data["variable_names"])
+    data_to_plot = pd.DataFrame(plot_data["targets"], columns=plot_data["variable_names"])
 
     # initialize plot
     artist = sns.PairGrid(data_to_plot, height=height, **kwargs)

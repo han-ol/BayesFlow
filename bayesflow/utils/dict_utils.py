@@ -134,6 +134,7 @@ def split_arrays(data: Mapping[str, np.ndarray], axis: int = -1) -> Mapping[str,
 def dicts_to_arrays(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray = None,
+    dataset_ids: Sequence[int] | int = None,
     filter_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     default_name: str = "v",
@@ -161,14 +162,18 @@ def dicts_to_arrays(
         - ndarray of shape (num_datasets, num_draws, num_variables)
             Posterior samples for each dataset, where `num_datasets` is the number of datasets,
             `num_draws` is the number of posterior draws, and `num_variables` is the number of variables.
-
+            
     references : dict[str, ndarray] or ndarray, optional (default = None)
         Ground-truth values corresponding to the estimates. Must match the structure and dimensionality
         of `estimates` in terms of first and last axis.
 
+    dataset_ids : Sequence of integers indexing the datasets to select (default = None).
+        By default, use all datasets.       
+
     variable_names : Sequence[str], optional (default = None)
         Optional variable names to act as a filter if dicts provided or actual variable names in case of array
         inputs.
+    
     default_name   : str, optional (default = "v")
         The default variable name to use if array arguments and no variable names are provided.
     """
@@ -186,6 +191,13 @@ def dicts_to_arrays(
         # to ensure safe subsetting of references if specified
         filter_keys = targets.keys()
 
+        if dataset_ids is not None:
+            if isinstance(dataset_ids, int):
+                # dataset_ids needs to be a sequence so that np.stack works correctly
+                dataset_ids = [dataset_ids]
+                
+            targets = {k: v[dataset_ids] for k, v in targets.items()}
+
         targets = split_arrays(targets)
 
         if variable_names is None:
@@ -195,6 +207,10 @@ def dicts_to_arrays(
 
         if references is not None:
             references = {k: references[k] for k in filter_keys}
+
+            if dataset_ids is not None:
+                references = {k: v[dataset_ids] for k, v in references.items()}
+
             references = split_arrays(references)
             references = np.stack(list(references.values()), axis=-1)
 
@@ -202,6 +218,11 @@ def dicts_to_arrays(
     elif isinstance(targets, np.ndarray):
         if variable_names is None:
             variable_names = [f"${default_name}_{{{i}}}$" for i in range(targets.shape[-1])]
+
+        if dataset_ids is not None:
+            targets = targets[dataset_ids]
+            if references is not None:
+                references = references[dataset_ids]
 
     # Throw if unknown type
     else:
