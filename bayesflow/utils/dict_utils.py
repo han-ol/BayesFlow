@@ -131,6 +131,67 @@ def split_arrays(data: Mapping[str, np.ndarray], axis: int = -1) -> Mapping[str,
     return result
 
 
+def validate_variable_array(
+    x: Mapping[str, np.ndarray] | np.ndarray,
+    dataset_ids: Sequence[int] | int = None,
+    filter_keys: Sequence[str] = None,
+    variable_names: Sequence[str] = None,
+    default_name: str = "v",
+):
+    """
+    Helper function to validate arrays for use in the diagnostics module.
+    
+    Parameters
+    ----------
+    x   : dict[str, ndarray] or ndarray. Dict of arrays or array to be validated. 
+        See dicts_to_arrays
+    dataset_ids : Sequence of integers indexing the datasets to select (default = None).
+        By default, use all datasets. 
+    variable_names : Sequence[str], optional (default = None)
+        Optional variable names to act as a filter if dicts provided or actual variable names in case of array
+        inputs.
+    default_name   : str, optional (default = "v")
+        The default variable name to use if array arguments and no variable names are provided.
+    """
+
+    if isinstance(x, dict):
+        if filter_keys is not None:
+            x = {k: x[k] for k in filter_keys}
+
+        filter_keys = x.keys()
+
+        if dataset_ids is not None:
+            if isinstance(dataset_ids, int):
+                # dataset_ids needs to be a sequence so that np.stack works correctly
+                dataset_ids = [dataset_ids]
+
+            x = {k: v[dataset_ids] for k, v in x.items()}
+
+        x = split_arrays(x)
+
+        if variable_names is None:
+            variable_names = list(x.keys())
+
+        x = np.stack(list(x.values()), axis=-1)
+
+    # Case arrays provided
+    elif isinstance(x, np.ndarray):
+        if variable_names is None:
+            variable_names = [f"${default_name}_{{{i}}}$" for i in range(x.shape[-1])]
+
+        if dataset_ids is not None:
+            x = x[dataset_ids]
+
+    # Throw if unknown type
+    else:
+        raise TypeError(f"Only dicts and tensors are supported as arguments, but your targets are of type {type(x)}")
+
+    if len(variable_names) is not x.shape[-1]:
+        raise ValueError("Length of 'variable_names' should be the same as the number of variables.")
+
+    return x, filter_keys, variable_names
+
+
 def dicts_to_arrays(
     targets: Mapping[str, np.ndarray] | np.ndarray,
     references: Mapping[str, np.ndarray] | np.ndarray = None,
@@ -162,76 +223,39 @@ def dicts_to_arrays(
         - ndarray of shape (num_datasets, num_draws, num_variables)
             Posterior samples for each dataset, where `num_datasets` is the number of datasets,
             `num_draws` is the number of posterior draws, and `num_variables` is the number of variables.
-            
+
     references : dict[str, ndarray] or ndarray, optional (default = None)
         Ground-truth values corresponding to the estimates. Must match the structure and dimensionality
         of `estimates` in terms of first and last axis.
 
     dataset_ids : Sequence of integers indexing the datasets to select (default = None).
-        By default, use all datasets.       
+        By default, use all datasets.
 
     variable_names : Sequence[str], optional (default = None)
         Optional variable names to act as a filter if dicts provided or actual variable names in case of array
         inputs.
-    
+
     default_name   : str, optional (default = "v")
         The default variable name to use if array arguments and no variable names are provided.
     """
 
-    # Ensure that posterior and prior variables have the same type
+    # other to be validated arrays (see below) will take use 
+    # the filter_keys and variable_names implied by targets
+    targets, filter_keys, variable_names = validate_variable_array(
+        targets,
+        dataset_ids=dataset_ids,
+        filter_keys=filter_keys,
+        variable_names=variable_names,
+        default_name=default_name,
+    )
+
     if references is not None:
-        if type(targets) is not type(references):
-            raise ValueError("You should either use dicts or tensors, but not separate types for your inputs.")
-
-    # Case dictionaries provided
-    if isinstance(targets, dict):
-        if filter_keys is not None:
-            targets = {k: targets[k] for k in filter_keys}
-
-        # to ensure safe subsetting of references if specified
-        filter_keys = targets.keys()
-
-        if dataset_ids is not None:
-            if isinstance(dataset_ids, int):
-                # dataset_ids needs to be a sequence so that np.stack works correctly
-                dataset_ids = [dataset_ids]
-                
-            targets = {k: v[dataset_ids] for k, v in targets.items()}
-
-        targets = split_arrays(targets)
-
-        if variable_names is None:
-            variable_names = list(targets.keys())
-
-        targets = np.stack(list(targets.values()), axis=-1)
-
-        if references is not None:
-            references = {k: references[k] for k in filter_keys}
-
-            if dataset_ids is not None:
-                references = {k: v[dataset_ids] for k, v in references.items()}
-
-            references = split_arrays(references)
-            references = np.stack(list(references.values()), axis=-1)
-
-    # Case arrays provided
-    elif isinstance(targets, np.ndarray):
-        if variable_names is None:
-            variable_names = [f"${default_name}_{{{i}}}$" for i in range(targets.shape[-1])]
-
-        if dataset_ids is not None:
-            targets = targets[dataset_ids]
-            if references is not None:
-                references = references[dataset_ids]
-
-    # Throw if unknown type
-    else:
-        raise TypeError(
-            f"Only dicts and tensors are supported as arguments, but your targets are of type {type(targets)}"
+        references, _, _ = validate_variable_array(
+            references,
+            dataset_ids=dataset_ids,
+            filter_keys=filter_keys,
+            variable_names=variable_names,
         )
-
-    if len(variable_names) is not targets.shape[-1]:
-        raise ValueError("Length of 'variable_names' should be the same as the number of variables.")
 
     return dict(
         targets=targets,
