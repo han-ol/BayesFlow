@@ -1,13 +1,11 @@
-from collections.abc import Callable, Mapping, Sequence
-
 import inspect
-import keras
+from collections.abc import Callable, Mapping, Sequence
 from typing import TypeVar, Any
 
+import keras
 import numpy as np
 
 from bayesflow.types import Tensor
-
 from . import logging
 
 T = TypeVar("T")
@@ -205,7 +203,7 @@ def dicts_to_arrays(
     variable_keys: Sequence[str] | str = None,
     variable_names: Sequence[str] | str = None,
     default_name: str = "v",
-) -> Mapping[str, Any]:
+) -> dict[str, Any]:
     """Helper function that prepares estimates and optional ground truths for diagnostics
     (plotting or computation of metrics).
 
