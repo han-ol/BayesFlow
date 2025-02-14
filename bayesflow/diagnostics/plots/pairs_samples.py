@@ -1,8 +1,9 @@
-import numpy as np
-import seaborn as sns
-import pandas as pd
-
 from typing import Sequence
+
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
 from bayesflow.utils import logging
 from bayesflow.utils.dict_utils import dicts_to_arrays
 
@@ -108,9 +109,9 @@ def _pairs_samples(
         artist.map_lower(sns.kdeplot, fill=True, color=color, alpha=alpha)
     except Exception as e:
         logging.exception("KDE failed due to the following exception:\n" + repr(e) + "\nSubstituting scatter plot.")
-        artist.map_lower(sns.scatterplot, alpha=0.6, s=40, edgecolor="k", color=color)
+        artist.map_lower(sns.scatterplot, alpha=0.6, s=40, edgecolor="k", color=color, lw=0)
 
-    artist.map_upper(sns.scatterplot, alpha=0.6, s=40, edgecolor="k", color=color)
+    artist.map_upper(sns.scatterplot, alpha=0.6, s=40, edgecolor="k", color=color, lw=0)
 
     dim = artist.axes.shape[0]
     for i in range(dim):
