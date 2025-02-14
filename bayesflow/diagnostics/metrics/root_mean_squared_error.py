@@ -6,9 +6,9 @@ from ...utils.dict_utils import dicts_to_arrays
 
 
 def root_mean_squared_error(
+    estimates: Mapping[str, np.ndarray] | np.ndarray,
     targets: Mapping[str, np.ndarray] | np.ndarray,
-    references: Mapping[str, np.ndarray] | np.ndarray,
-    filter_keys: Sequence[str] = None,
+    variable_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     normalize: bool = True,
     aggregation: Callable = np.median,
@@ -17,13 +17,13 @@ def root_mean_squared_error(
 
     Parameters
     ----------
-    targets   : np.ndarray of shape (num_datasets, num_draws_post, num_variables)
+    estimates   : np.ndarray of shape (num_datasets, num_draws_post, num_variables)
         Posterior samples, comprising `num_draws_post` random draws from the posterior distribution
         for each data set from `num_datasets`.
-    references  : np.ndarray of shape (num_datasets, num_variables)
+    targets  : np.ndarray of shape (num_datasets, num_variables)
         Prior samples, comprising `num_datasets` ground truths.
-    filter_keys : Sequence[str], optional (default = None)
-       Select keys from the dictionaries provided in targets and references.
+    variable_keys : Sequence[str], optional (default = None)
+       Select keys from the dictionaries provided in estimates and targets.
        By default, select all keys.
     variable_names : Sequence[str], optional (default = None)
         Optional variable names to show in the output.
@@ -50,16 +50,16 @@ def root_mean_squared_error(
     """
 
     samples = dicts_to_arrays(
+        estimates=estimates,
         targets=targets,
-        references=references,
-        filter_keys=filter_keys,
+        variable_keys=variable_keys,
         variable_names=variable_names,
     )
 
-    rmse = np.sqrt(np.mean((samples["targets"] - samples["references"][:, None, :]) ** 2, axis=0))
+    rmse = np.sqrt(np.mean((samples["estimates"] - samples["targets"][:, None, :]) ** 2, axis=0))
 
     if normalize:
-        rmse /= (samples["references"].max(axis=0) - samples["references"].min(axis=0))[None, :]
+        rmse /= (samples["targets"].max(axis=0) - samples["targets"].min(axis=0))[None, :]
         metric_name = "NRMSE"
     else:
         metric_name = "RMSE"

@@ -134,19 +134,19 @@ def split_arrays(data: Mapping[str, np.ndarray], axis: int = -1) -> Mapping[str,
 def validate_variable_array(
     x: Mapping[str, np.ndarray] | np.ndarray,
     dataset_ids: Sequence[int] | int = None,
-    filter_keys: Sequence[str] = None,
-    variable_names: Sequence[str] = None,
+    variable_keys: Sequence[str] | str = None,
+    variable_names: Sequence[str] | str = None,
     default_name: str = "v",
 ):
     """
     Helper function to validate arrays for use in the diagnostics module.
-    
+
     Parameters
     ----------
-    x   : dict[str, ndarray] or ndarray. Dict of arrays or array to be validated. 
+    x   : dict[str, ndarray] or ndarray. Dict of arrays or array to be validated.
         See dicts_to_arrays
     dataset_ids : Sequence of integers indexing the datasets to select (default = None).
-        By default, use all datasets. 
+        By default, use all datasets.
     variable_names : Sequence[str], optional (default = None)
         Optional variable names to act as a filter if dicts provided or actual variable names in case of array
         inputs.
@@ -154,11 +154,17 @@ def validate_variable_array(
         The default variable name to use if array arguments and no variable names are provided.
     """
 
-    if isinstance(x, dict):
-        if filter_keys is not None:
-            x = {k: x[k] for k in filter_keys}
+    if isinstance(variable_keys, str):
+        variable_keys = [variable_keys]
 
-        filter_keys = x.keys()
+    if isinstance(variable_names, str):
+        variable_names = [variable_names]
+
+    if isinstance(x, dict):
+        if variable_keys is not None:
+            x = {k: x[k] for k in variable_keys}
+
+        variable_keys = x.keys()
 
         if dataset_ids is not None:
             if isinstance(dataset_ids, int):
@@ -184,20 +190,20 @@ def validate_variable_array(
 
     # Throw if unknown type
     else:
-        raise TypeError(f"Only dicts and tensors are supported as arguments, but your targets are of type {type(x)}")
+        raise TypeError(f"Only dicts and tensors are supported as arguments, but your estimates are of type {type(x)}")
 
     if len(variable_names) is not x.shape[-1]:
         raise ValueError("Length of 'variable_names' should be the same as the number of variables.")
 
-    return x, filter_keys, variable_names
+    return x, variable_keys, variable_names
 
 
 def dicts_to_arrays(
-    targets: Mapping[str, np.ndarray] | np.ndarray,
-    references: Mapping[str, np.ndarray] | np.ndarray = None,
+    estimates: Mapping[str, np.ndarray] | np.ndarray,
+    targets: Mapping[str, np.ndarray] | np.ndarray = None,
     dataset_ids: Sequence[int] | int = None,
-    filter_keys: Sequence[str] = None,
-    variable_names: Sequence[str] = None,
+    variable_keys: Sequence[str] | str = None,
+    variable_names: Sequence[str] | str = None,
     default_name: str = "v",
 ) -> Mapping[str, Any]:
     """Helper function that prepares estimates and optional ground truths for diagnostics
@@ -215,7 +221,7 @@ def dicts_to_arrays(
 
     Parameters
     ----------
-    targets   : dict[str, ndarray] or ndarray
+    estimates   : dict[str, ndarray] or ndarray
         The model-generated predictions or estimates, which can take the following forms:
         - ndarray of shape (num_datasets, num_variables)
             Point estimates for each dataset, where `num_datasets` is the number of datasets
@@ -224,7 +230,7 @@ def dicts_to_arrays(
             Posterior samples for each dataset, where `num_datasets` is the number of datasets,
             `num_draws` is the number of posterior draws, and `num_variables` is the number of variables.
 
-    references : dict[str, ndarray] or ndarray, optional (default = None)
+    targets : dict[str, ndarray] or ndarray, optional (default = None)
         Ground-truth values corresponding to the estimates. Must match the structure and dimensionality
         of `estimates` in terms of first and last axis.
 
@@ -239,27 +245,27 @@ def dicts_to_arrays(
         The default variable name to use if array arguments and no variable names are provided.
     """
 
-    # other to be validated arrays (see below) will take use 
-    # the filter_keys and variable_names implied by targets
-    targets, filter_keys, variable_names = validate_variable_array(
-        targets,
+    # other to be validated arrays (see below) will take use
+    # the variable_keys and variable_names implied by estimates
+    estimates, variable_keys, variable_names = validate_variable_array(
+        estimates,
         dataset_ids=dataset_ids,
-        filter_keys=filter_keys,
+        variable_keys=variable_keys,
         variable_names=variable_names,
         default_name=default_name,
     )
 
-    if references is not None:
-        references, _, _ = validate_variable_array(
-            references,
+    if targets is not None:
+        targets, _, _ = validate_variable_array(
+            targets,
             dataset_ids=dataset_ids,
-            filter_keys=filter_keys,
+            variable_keys=variable_keys,
             variable_names=variable_names,
         )
 
     return dict(
+        estimates=estimates,
         targets=targets,
-        references=references,
         variable_names=variable_names,
         num_variables=len(variable_names),
     )

@@ -9,7 +9,7 @@ from bayesflow.utils.dict_utils import dicts_to_arrays
 
 def pairs_samples(
     samples: dict[str, np.ndarray] | np.ndarray = None,
-    filter_keys: Sequence[str] = None,
+    variable_keys: Sequence[str] = None,
     variable_names: Sequence[str] = None,
     height: float = 2.5,
     color: str | tuple = "#132a70",
@@ -26,7 +26,7 @@ def pairs_samples(
     ----------
     samples     : dict[str, Tensor], default: None
         Sample draws from any dataset
-    filter_keys       : list or None, optional, default: None
+    variable_keys       : list or None, optional, default: None
        Select keys from the dictionary provided in samples.
        By default, select all keys.
     variable_names    : list or None, optional, default: None
@@ -46,8 +46,8 @@ def pairs_samples(
     """
 
     plot_data = dicts_to_arrays(
-        targets=samples,
-        filter_keys=filter_keys,
+        estimates=samples,
+        variable_keys=variable_keys,
         variable_names=variable_names,
     )
 
@@ -79,15 +79,15 @@ def _pairs_samples(
     # plot_data   : output of bayesflow.utils.dict_utils.dicts_to_arrays
     # other arguments are documented in pairs_samples
 
-    targets_shape = plot_data["targets"].shape
-    if len(targets_shape) != 2:
+    estimates_shape = plot_data["estimates"].shape
+    if len(estimates_shape) != 2:
         raise ValueError(
             f"Samples for a single distribution should be a matrix, but "
-            f"your samples array has a shape of {targets_shape}."
+            f"your samples array has a shape of {estimates_shape}."
         )
 
     # Convert samples to pd.DataFrame
-    data_to_plot = pd.DataFrame(plot_data["targets"], columns=plot_data["variable_names"])
+    data_to_plot = pd.DataFrame(plot_data["estimates"], columns=plot_data["variable_names"])
 
     # initialize plot
     artist = sns.PairGrid(data_to_plot, height=height, **kwargs)
